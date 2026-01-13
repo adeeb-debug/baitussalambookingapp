@@ -48,8 +48,7 @@ const modernTheme = createTheme({
       main: "#ff9800", // Orange Accent
     },
     background: {
-      default: "#e8eaf6", // Light Lavender/Gray
-      paper: "#ffffff",
+      default: "#ffffff",
     },
   },
   typography: {
@@ -210,7 +209,9 @@ export default function App() {
 
     if (!isViewAllowed) {
       return (
-        <Alert severity="warning">Please sign in to access this feature.</Alert>
+        <Box sx={{ px: 2 }}>
+          <Alert severity="warning">Please sign in to access this feature.</Alert>
+        </Box>
       );
     }
 
@@ -241,33 +242,37 @@ export default function App() {
       : 12; // Other views (AdminPanel, AllBookingsPanel, UserBookings) use full width
 
     return (
-      <Grid
-        container
-        spacing={isMobile ? 3 : 4}
-        alignItems="stretch"
-        justifyContent="center"
-        sx={{ width: "100%" }}
-      >
-        {/* --- 1. Main Component (BookingForm / AdminPanel / UserBookings / AllBookingsPanel) --- */}
-        <Grid item xs={12} md={mainContentColumns}>
-          <Paper
-            elevation={8}
-            sx={{
-              width: "100%",
-              p: isMobile ? 3 : 4,
-              borderRadius: 3,
-              minHeight: "400px",
-            }}
-          >
-            <ComponentToRender
-              user={user}
-              isAdmin={isAdmin}
-              bookings={bookings}
-              loading={loading}
-            />
-          </Paper>
+      /* ✅ Wrapped in Box with overflowX hidden and used margin 0 on Grid to fix mobile bleed */
+      <Box sx={{ width: "100%", overflowX: "hidden" }}>
+        <Grid
+          container
+          spacing={isMobile ? 0 : 4} // Removed spacing on mobile to prevent negative margin overflow
+          alignItems="stretch"
+          justifyContent="center"
+          sx={{ width: "100%", margin: 0 }} 
+        >
+          {/* --- 1. Main Component (BookingForm / AdminPanel / UserBookings / AllBookingsPanel) --- */}
+          <Grid item xs={12} md={mainContentColumns} sx={{ p: isMobile ? 0 : 2 }}>
+            <Paper
+              elevation={isMobile ? 0 : 8}
+              sx={{
+                width: "100%",
+                p: isMobile ? 2 : 4,
+                borderRadius: isMobile ? 0 : 3, // Square edges look cleaner on mobile if it's bleeding
+                minHeight: "400px",
+                boxSizing: "border-box"
+              }}
+            >
+              <ComponentToRender
+                user={user}
+                isAdmin={isAdmin}
+                bookings={bookings}
+                loading={loading}
+              />
+            </Paper>
+          </Grid>
         </Grid>
-      </Grid>
+      </Box>
     );
   };
   // ---------------------------------
@@ -278,7 +283,11 @@ export default function App() {
         sx={{
           flexGrow: 1,
           minHeight: "100vh",
+          maxWidth: "100vw", // ✅ Strict viewport lock
+          overflowX: "hidden", // ✅ Prevent horizontal scroll globally
           backgroundColor: "background.default",
+          display: "flex",
+          flexDirection: "column"
         }}
       >
         {/* --- Header/AppBar --- */}
@@ -287,9 +296,9 @@ export default function App() {
           color="transparent"
           elevation={0}
           sx={{
-            borderBottom: "1px solid rgba(0, 0, 0, 0.1)",
-            backgroundColor: "background.paper",
+            backgroundColor: "background.default",
             color: "primary.main",
+            width: "100%",
           }}
         >
           <Toolbar
@@ -321,12 +330,13 @@ export default function App() {
                 display: "flex",
                 alignItems: "center",
                 gap: 1,
+                fontSize: isMobile ? '0.9rem' : '1.25rem' // Smaller font for mobile header
               }}
             >
               Baitus Salam Booking Portal
               {isAdmin && (
                 <VerifiedUser
-                  sx={{ color: "secondary.main", ml: 1 }}
+                  sx={{ color: "secondary.main", ml: 0.5 }}
                   fontSize="small"
                 />
               )}
@@ -347,7 +357,6 @@ export default function App() {
             {/* --- User/Auth Section --- */}
             {user ? (
               <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-                {/* User Info (Hidden on Mobile) */}
                 {!isMobile && (
                   <Typography
                     variant="body2"
@@ -369,13 +378,12 @@ export default function App() {
                   </Typography>
                 )}
 
-                {/* Logout Button/Icon */}
                 {isMobile ? (
                   <IconButton
                     color="primary"
                     onClick={logout}
                     size="medium"
-                    sx={{ mr: -1.5 }}
+                    sx={{ mr: -1 }}
                   >
                     <LogoutOutlined />
                   </IconButton>
@@ -391,27 +399,23 @@ export default function App() {
                   </Button>
                 )}
               </Box>
-            ) : // Sign In Button/Icon
+            ) : 
             isMobile ? (
+              <IconButton
+                color="primary"
+                onClick={() => setIsSignInModalOpen(true)}
+              >
+                <LockOpenOutlined />
+              </IconButton>
+            ) : (
               <Button
                 variant="contained"
                 color="primary"
                 onClick={() => setIsSignInModalOpen(true)}
-                size={"small"}
                 startIcon={<LockOpenOutlined />}
-                sx={{ py: 1, fontWeight: 600 }}
               >
                 Sign In
               </Button>
-            ) : (
-              <IconButton
-                color="primary"
-                onClick={() => setIsSignInModalOpen(true)}
-                size="large"
-                sx={{ ml: 2 }}
-              >
-                <LockOpenOutlined />
-              </IconButton>
             )}
           </Toolbar>
         </AppBar>
@@ -419,10 +423,11 @@ export default function App() {
         {/* --- Main Content Container --- */}
         <Box
           sx={{
-            mt: 4,
+            mt: isMobile ? 0 : 4,
             mb: 4,
-            px: isMobile ? 2 : 3,
+            px: isMobile ? 0 : 3, // Remove horizontal padding on mobile to use full width
             width: "100%",
+            boxSizing: "border-box"
           }}
         >
           {renderContent()}

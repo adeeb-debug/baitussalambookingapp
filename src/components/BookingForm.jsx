@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Button, Typography, CircularProgress, Alert, Card, CardContent } from "@mui/material";
+import { Button, Typography, CircularProgress, Alert, Box } from "@mui/material";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import dayjs from "dayjs";
@@ -19,7 +19,7 @@ export default function BookingForm({ user, bookings }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [status, setStatus] = useState({ error: "", success: false });
 
-  // Update available locations when time/date changes
+  // Update available locations logic
   useEffect(() => {
     if (!formData.date || !formData.fromTime || !formData.toTime) return;
     const reqStart = dayjs(`2026-01-01T${formData.fromTime}`);
@@ -43,7 +43,6 @@ export default function BookingForm({ user, bookings }) {
       await submitBookingBatch(db, user, formData, formData.locations);
       await sendAdminNotification(db, { ...formData, email: user.email, timeRange: `${formData.fromTime}-${formData.toTime}` });
       setStatus({ error: "", success: true });
-      // Reset form logic here if desired
     } catch (e) {
       setStatus({ error: e.message, success: false });
     } finally {
@@ -53,34 +52,52 @@ export default function BookingForm({ user, bookings }) {
 
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
-      <Card elevation={0} sx={{ borderRadius: 3 }}>
-        <CardContent sx={{ p: 0 }}>
-          <Typography variant="h5" sx={{ fontWeight: 600, color: "primary.main", mb: 3, borderBottom: "2px solid #ddd", pb: 1 }}>
-            📝 Request a Booking
-          </Typography>
+      <Box sx={{ p: 0 }}> {/* ✅ Removed container padding to prevent double-boxing */}
+        <Typography 
+          variant="h5" 
+          sx={{ 
+            fontWeight: 700, 
+            color: "primary.main", 
+            mb: 2, 
+            textAlign: "left" 
+          }}
+        >
+          📝 Request a Booking
+        </Typography>
 
-          {status.error && <Alert severity="error" sx={{ mb: 2 }}>{status.error}</Alert>}
-          {status.success && <Alert severity="success" sx={{ mb: 2 }}>Booking Sent!</Alert>}
+        {status.error && <Alert severity="error" sx={{ mb: 2 }}>{status.error}</Alert>}
+        {status.success && <Alert severity="success" sx={{ mb: 2 }}>Booking Sent!</Alert>}
 
-          {user ? (
-            <>
-              <BookingFormFields formData={formData} setFormData={setFormData} availableLocations={availableLocations} />
-              <Button
-                variant="contained"
-                fullWidth
-                size="large"
-                disabled={isSubmitting}
-                onClick={handleSend}
-                startIcon={isSubmitting && <CircularProgress size={20} />}
-              >
-                {isSubmitting ? "Submitting..." : "Submit Request"}
-              </Button>
-            </>
-          ) : (
-            <Alert severity="info">Please sign in to make a booking.</Alert>
-          )}
-        </CardContent>
-      </Card>
+        {user ? (
+          <Box sx={{ mt: 1 }}>
+            <BookingFormFields 
+              formData={formData} 
+              setFormData={setFormData} 
+              availableLocations={availableLocations} 
+            />
+            <Button
+              variant="contained"
+              fullWidth
+              size="large"
+              disabled={isSubmitting}
+              onClick={handleSend}
+              sx={{ 
+                mt: 3, 
+                py: 1.5, 
+                borderRadius: 2, // Matches your theme's app-like feel
+                fontWeight: 600 
+              }}
+              startIcon={isSubmitting && <CircularProgress size={20} color="inherit" />}
+            >
+              {isSubmitting ? "Submitting..." : "Submit Request"}
+            </Button>
+          </Box>
+        ) : (
+          <Alert severity="info" sx={{ borderRadius: 2 }}>
+            Please sign in to make a booking.
+          </Alert>
+        )}
+      </Box>
     </LocalizationProvider>
   );
 }
