@@ -93,7 +93,8 @@ export const submitBookingBatch = async (db, user, formData, locations) => {
   const groupId = uuidv4();
 
   for (const locationName of locations) {
-    const newDocRef = doc(collection(db, "bookings"));
+    const customId = `${formData.date}_${formData.eventName.replace(/\s+/g, '')}_${locationName.replace(/\s+/g, '')}`;
+    const newDocRef = doc(collection(db, "bookings",customId));
     batch.set(newDocRef, {
       ...formData,
       location: locationName,

@@ -380,6 +380,29 @@ export default function UserBookings({ user, bookings, loading }) {
                                                 </Typography>
                                             </Alert>
                                         )}
+
+                                        {/* Delete Action */}
+                                        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 'auto' }}>
+                                            <Tooltip title="Cancel and delete ALL locations for this event">
+                                              {/* Changed to a button for better click area/accessibility */}
+                                                <Button
+                                                  variant="outlined" 
+                                                  color="error"
+                                                  onClick={() => deleteGroup(group)}
+                                                  disabled={isDeleting}
+                                                  sx={{ p: 1, borderRadius: 2, width: '100%' }}
+                                                >
+                                                    {isDeleting ? (
+                                                        <CircularProgress size={24} color="inherit" />
+                                                    ) : (
+                                                        <DeleteIcon sx={{ mr: 1 }} />
+                                                    )}
+                                                    <Typography variant="button">
+                                                        Cancel Event
+                                                    </Typography>
+                                                </Button>
+                                            </Tooltip>
+                                        </Box>
                                     </Box>
                                 </Grid>
                             </Grid>
