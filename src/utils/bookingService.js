@@ -1,34 +1,100 @@
-import { collection, addDoc, writeBatch, doc } from "firebase/firestore";
+import { collection, addDoc, writeBatch, doc, query, where, getDocs } from "firebase/firestore";
 import { v4 as uuidv4 } from "uuid";
 
-// 1. NOTIFY ADMIN (Triggered when user first books)
-export const sendAdminNotification = async (db, data) => {
+export const sendAdminNotification = async (db, formData) => {
   try {
-    await addDoc(collection(db, "mail"), {
-      to: "adeebahmad2@gmail.com",
-      message: {
-        subject: `NEW BOOKING: ${data.eventName}`,
-        replyTo: data.email,
-        html: `
-          <div style="font-family: sans-serif; max-width: 600px; border: 1px solid #eee; border-radius: 12px; overflow: hidden;">
-            <div style="background-color: #00695c; padding: 20px; text-align: center; color: white;">
-              <h2>New Booking Request</h2>
-            </div>
-            <div style="padding: 20px; line-height: 1.6;">
-              <p><strong>Organizer:</strong> ${data.fullName}</p>
-              <p><strong>Event:</strong> ${data.eventName}</p>
-              <p><strong>Locations:</strong> ${data.locations}</p>
-              <p><strong>Date:</strong> ${data.date}</p>
-              <p><strong>Time:</strong> ${data.timeRange}</p>
-              <div style="text-align: center; margin-top: 20px;">
-                <a href="https://booking-baitussalam.web.app/" style="background: #00695c; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Review Booking</a>
-              </div>
-            </div>
-          </div>`,
-      },
-    });
+    // Get all users who are admins
+    const adminsQuery = query(
+      collection(db, "users"),
+      where("isAdmin", "==", true)
+    );
+    const adminsSnapshot = await getDocs(adminsQuery);
+
+    const adminEmails = adminsSnapshot.docs.map(doc => doc.data().email);
+
+    if (adminEmails.length === 0) {
+      return;
+    }
+
+    // Send email to each admin
+    const mailPromises = adminEmails.map(email =>
+      addDoc(collection(db, "mail"), {
+        to: email,
+        message: {
+          subject: `NEW BOOKING: ${formData.eventName}`,
+          replyTo: formData.email,
+          html: `
+           <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #ddd; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+  <!-- Header -->
+  <div style="background-color: #00796b; padding: 20px; text-align: center; color: white;">
+    <h1 style="margin: 0; font-size: 22px;">📝 New Booking Request</h1>
+  </div>
+
+  <!-- Body -->
+  <div style="padding: 20px; line-height: 1.6; color: #333;">
+    <p>Assalam o Alaikum,</p>
+    <p>A new booking request has been submitted. Details are below:</p>
+
+    <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+      <tr>
+        <td style="padding: 8px; font-weight: bold; width: 120px;">Organizer:</td>
+        <td style="padding: 8px;">${formData.fullName}</td>
+      </tr>
+      <tr style="background-color: #f9f9f9;">
+        <td style="padding: 8px; font-weight: bold;">Email:</td>
+        <td style="padding: 8px;">${formData.email}</td>
+      </tr>
+      <tr>
+        <td style="padding: 8px; font-weight: bold;">Event:</td>
+        <td style="padding: 8px;">${formData.eventName}</td>
+      </tr>
+      <tr style="background-color: #f9f9f9;">
+        <td style="padding: 8px; font-weight: bold;">Locations:</td>
+        <td style="padding: 8px;">${formData.locations.join(", ")}</td>
+      </tr>
+      <tr>
+        <td style="padding: 8px; font-weight: bold;">Date:</td>
+        <td style="padding: 8px;">${formData.date}</td>
+      </tr>
+      <tr style="background-color: #f9f9f9;">
+        <td style="padding: 8px; font-weight: bold;">Time:</td>
+        <td style="padding: 8px;">${formData.timeRange}</td>
+      </tr>
+      <tr>
+        <td style="padding: 8px; font-weight: bold;">Phone:</td>
+        <td style="padding: 8px;">${formData.phoneNumber || "N/A"}</td>
+      </tr>
+      <tr style="background-color: #f9f9f9;">
+        <td style="padding: 8px; font-weight: bold;">Jamaat:</td>
+        <td style="padding: 8px;">${formData.jamaat || "N/A"}</td>
+      </tr>
+    </table>
+
+    <p style="margin-top: 20px;">
+      Please review the booking and take necessary action.
+    </p>
+
+    <!-- CTA Button -->
+    <div style="text-align: center; margin-top: 25px;">
+      <a href="https://booking-baitussalam.web.app/" 
+         style="background-color: #00796b; color: white; text-decoration: none; padding: 12px 25px; border-radius: 5px; display: inline-block; font-weight: bold;">
+        Review Booking
+      </a>
+    </div>
+
+    <p style="margin-top: 20px; font-size: 0.85rem; color: #777;">
+      This is an automated notification. Please do not reply directly to this email.
+    </p>
+  </div>
+</div>
+`,
+        },
+      })
+    );
+
+    await Promise.all(mailPromises);
+    
   } catch (error) {
-    console.error("Admin Email Error:", error);
   }
 };
 
@@ -60,13 +126,19 @@ export const sendUserConfirmation = async (db, group) => {
               <h2 style="margin:0;">Booking Decision</h2>
             </div>
             <div style="padding: 20px; line-height: 1.6;">
-              <p>Hello <strong>${group.requestedByName}</strong>,</p>
+              <p>Assalam o Alaikum <strong>${group.requestedByName}</strong>,</p>
               <p>The admin has finished reviewing your request for <strong>${group.eventName}</strong>.</p>
               <div style="margin: 20px 0;">
                 ${locationListHtml}
               </div>
-              <p style="font-size: 0.8rem; color: #888; border-top: 1px solid #eee; pt: 10px;">
-                This is an automated update. If you have questions, please contact the admin office.
+             <p>For any questions regarding your booking, please contact:</p>
+              <ul>
+                <li>Sadar Jamaat Langwarrin - Mubarik Minhas: 0468 727 929</li>
+                <li>Naib Sadar Jamaat Langwarrin - Ansar Shareef: 0426 714 215</li>
+              </ul>
+
+                            <p style="font-size: 0.8rem; color: #888; border-top: 1px solid #eee; padding-top: 10px;">
+                This is an automated acknowledgment. Please do not reply to this email.
               </p>
             </div>
           </div>`,
@@ -82,7 +154,6 @@ export const sendUserConfirmation = async (db, group) => {
     await batch.commit();
 
   } catch (error) {
-    console.error("User Notification Error:", error);
     throw error;
   }
 };
@@ -93,8 +164,9 @@ export const submitBookingBatch = async (db, user, formData, locations) => {
   const groupId = uuidv4();
 
   for (const locationName of locations) {
+    
     const customId = `${formData.date}_${formData.eventName.replace(/\s+/g, '')}_${locationName.replace(/\s+/g, '')}`;
-    const newDocRef = doc(collection(db, "bookings",customId));
+    const newDocRef = doc(db, "bookings",customId);
     batch.set(newDocRef, {
       ...formData,
       location: locationName,
@@ -108,4 +180,78 @@ export const submitBookingBatch = async (db, user, formData, locations) => {
   }
   await batch.commit();
   return { groupId };
+};
+
+// 4. USER ACKNOWLEDGMENT EMAIL (Immediate upon booking submission)
+export const sendUserAcknowledgement = async (db, userEmail, userName, formData) => {
+  try {
+    await addDoc(collection(db, "mail"), {
+      to: userEmail,
+      message: {
+        subject: `Booking Request Received: ${formData.eventName}`,
+        html: `
+          <div style="font-family: sans-serif; max-width: 600px; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
+            <div style="background-color: #1976d2; padding: 20px; text-align: center; color: white;">
+              <h2 style="margin:0;">Booking Request Acknowledged</h2>
+            </div>
+            <div style="padding: 20px; line-height: 1.6;">
+              <p>Assalam o Alaikum <strong>${userName}</strong>,</p>
+              <p>Your booking request for <strong>${formData.eventName}</strong> </strong> has been successfully received.</p>
+              
+              <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+                        <tr>
+        <td style="padding: 8px; font-weight: bold;">Event:</td>
+        <td style="padding: 8px;">${formData.eventName}</td>
+      </tr>
+      <tr>
+        <td style="padding: 8px; font-weight: bold; width: 120px;">Organizer:</td>
+        <td style="padding: 8px;">${formData.fullName}</td>
+      </tr>
+      <tr style="background-color: #f9f9f9;">
+        <td style="padding: 8px; font-weight: bold;">Email:</td>
+        <td style="padding: 8px;">${userEmail}</td>
+      </tr>
+
+      <tr style="background-color: #f9f9f9;">
+        <td style="padding: 8px; font-weight: bold;">Locations:</td>
+        <td style="padding: 8px;">${formData.locations.join(", ")}</td>
+      </tr>
+      <tr>
+        <td style="padding: 8px; font-weight: bold;">Date:</td>
+        <td style="padding: 8px;">${formData.date}</td>
+      </tr>
+      <tr style="background-color: #f9f9f9;">
+        <td style="padding: 8px; font-weight: bold;">Time:</td>
+        <td style="padding: 8px;">${formData.fromTime} - ${formData.toTime}</td>
+      </tr>
+      <tr>
+        <td style="padding: 8px; font-weight: bold;">Phone:</td>
+        <td style="padding: 8px;">${formData.phoneNumber || "N/A"}</td>
+      </tr>
+      <tr style="background-color: #f9f9f9;">
+        <td style="padding: 8px; font-weight: bold;">Jamaat:</td>
+        <td style="padding: 8px;">${formData.jamaat || "N/A"}</td>
+      </tr>
+    </table>
+              
+              
+              <p>Please wait for the approval to be granted. You will receive a confirmation once it has been approved or rejected.</p>
+              <p>If you do not hear back within <strong>2 days</strong>, please contact:</p>
+              <ul>
+                <li>Sadar Jamaat Langwarrin - Mubarik Minhas: 0468 727 929</li>
+                <li>Naib Sadar Jamaat Langwarrin - Ansar Shareef: 0426 714 215</li>
+              </ul>
+              <p style="font-size: 0.8rem; color: #888; border-top: 1px solid #eee; padding-top: 10px;">
+                This is an automated acknowledgment. Please do not reply to this email.
+              </p>
+            </div>
+          </div>
+        `,
+      },
+    });
+
+
+  } catch (error) {
+    throw error;
+  }
 };

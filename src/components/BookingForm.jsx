@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { Button, Typography, CircularProgress, Alert, Box } from "@mui/material";
+import { Button, Typography, CircularProgress, Alert, Box, FormControlLabel, Checkbox } from "@mui/material";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import dayjs from "dayjs";
 import { db } from "../firebase/firebaseConfig";
 import { LOCATIONS } from "../utils/constants";
 import { overlaps } from "../utils/timeUtils";
-import { sendAdminNotification, submitBookingBatch } from "../utils/bookingService";
+import { sendAdminNotification, submitBookingBatch, sendUserAcknowledgement } from "../utils/bookingService";
 import BookingFormFields from "./BookingFormFields";
 
 export default function BookingForm({ user, bookings }) {
@@ -18,8 +18,9 @@ export default function BookingForm({ user, bookings }) {
   const [availableLocations, setAvailableLocations] = useState(LOCATIONS);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [status, setStatus] = useState({ error: "", success: false });
+  const [acceptedDisclaimer, setAcceptedDisclaimer] = useState(false);
 
-  // Update available locations logic
+
   useEffect(() => {
     if (!formData.date || !formData.fromTime || !formData.toTime) return;
     const reqStart = dayjs(`2026-01-01T${formData.fromTime}`);
@@ -38,10 +39,20 @@ export default function BookingForm({ user, bookings }) {
       setStatus({ error: "Please fill in all fields.", success: false });
       return;
     }
+    if (!acceptedDisclaimer) {
+  setStatus({
+    error: "You must accept the responsibility disclaimer before submitting.",
+    success: false
+  });
+  return;
+}
+
     setIsSubmitting(true);
     try {
       await submitBookingBatch(db, user, formData, formData.locations);
       await sendAdminNotification(db, { ...formData, email: user.email, timeRange: `${formData.fromTime}-${formData.toTime}` });
+      await sendUserAcknowledgement(db, user.email, formData.fullName, formData);
+
       setStatus({ error: "", success: true });
     } catch (e) {
       setStatus({ error: e.message, success: false });
@@ -75,6 +86,27 @@ export default function BookingForm({ user, bookings }) {
               setFormData={setFormData} 
               availableLocations={availableLocations} 
             />
+
+            <Box sx={{ mt: 2 }}>
+<Alert severity="info" sx={{ mb: 1 }}>
+    <ul style={{ margin: 0, paddingLeft: "1.25rem" }}>
+      <li>Jamaat Jalsa Jaat or meetings with Ameer Sb will take precedence over any other booked event.</li>
+      <li>You will be responsible for the cleaning and tidiness of all equipment and areas used during your booking.</li>
+      <li>There won’t be any events on Fridays before 3:00 PM.</li>
+    </ul>
+  </Alert>
+
+  <FormControlLabel
+    control={
+      <Checkbox
+        checked={acceptedDisclaimer}
+        onChange={(e) => setAcceptedDisclaimer(e.target.checked)}
+      />
+    }
+    label="I understand and accept the conditions."
+  />
+</Box>
+
             <Button
               variant="contained"
               fullWidth
