@@ -1,33 +1,103 @@
-import { collection, addDoc, writeBatch, doc, query, where, getDocs } from "firebase/firestore";
+import {
+  collection,
+  addDoc,
+  writeBatch,
+  doc,
+  query,
+  where,
+  getDocs,
+  runTransaction,
+} from "firebase/firestore";
 import { v4 as uuidv4 } from "uuid";
+import dayjs from "dayjs";
 
-export const sendAdminNotification = async (db, formData) => {
+export const submitBookingBatch = async (db, user, formData, locations) => {
+  if (!user) throw new Error("Not authenticated");
+
+  if (!formData.eventName || locations.length === 0) {
+    throw new Error("Invalid booking data");
+  }
+
+  const batch = writeBatch(db);
+  const bookingId = await generateBookingId(db);
+  const groupId = uuidv4();
+
+  for (const locationName of locations) {
+    const sortableDate = dayjs(formData.date, "DD-MM-YYYY").format(
+      "YYYY-MM-DD",
+    );
+    const customId = `${sortableDate}_${formData.eventName.replace(/\s+/g, "")}_${locationName.replace(/\s+/g, "")}`;
+    const newDocRef = doc(db, "bookings", customId);
+    batch.set(newDocRef, {
+      ...formData,
+      location: locationName,
+      status: "Pending",
+      userNotified: false, // Track if decision email has been sent
+      requestedByEmail: user.email,
+      requestedByName: formData.fullName,
+      requestedAt: new Date().toISOString(),
+      groupId: groupId,
+      bookingId: bookingId,
+    });
+  }
+  await batch.commit();
+  return { groupId, bookingId };
+};
+//Generate Booking ID
+export const generateBookingId = async (db) => {
+  const year = new Date().getFullYear();
+  const counterRef = doc(db, "counters", `bookings_${year}`);
+
+  const bookingId = await runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(counterRef);
+
+    let next = 1;
+
+    if (!snap.exists()) {
+      transaction.set(counterRef, { year, lastNumber: 1 });
+    } else {
+      next = snap.data().lastNumber + 1;
+      transaction.update(counterRef, { lastNumber: next });
+    }
+
+    return `${year}-${String(next).padStart(4, "0")}`;
+  });
+
+  return bookingId;
+};
+
+
+
+//----------------------------------------------------------------------------
+//SEND Email to All Admins when a booking request is made
+//----------------------------------------------------------------------------
+export const sendAdminNotification = async (db, formData, bookingId) => {
   try {
     // Get all users who are admins
     const adminsQuery = query(
       collection(db, "users"),
-      where("isAdmin", "==", true)
+      where("isAdmin", "==", true),
     );
     const adminsSnapshot = await getDocs(adminsQuery);
 
-    const adminEmails = adminsSnapshot.docs.map(doc => doc.data().email);
+    const adminEmails = adminsSnapshot.docs.map((doc) => doc.data().email);
 
     if (adminEmails.length === 0) {
       return;
     }
 
     // Send email to each admin
-    const mailPromises = adminEmails.map(email =>
+    const mailPromises = adminEmails.map((email) =>
       addDoc(collection(db, "mail"), {
         to: email,
         message: {
-          subject: `NEW BOOKING: ${formData.eventName}`,
+          subject: `Review Booking: ${bookingId} - ${formData.eventName}`,
           replyTo: formData.email,
           html: `
            <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #ddd; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
   <!-- Header -->
   <div style="background-color: #00796b; padding: 20px; text-align: center; color: white;">
-    <h1 style="margin: 0; font-size: 22px;">📝 New Booking Request</h1>
+    <h1 style="margin: 0; font-size: 22px;">Review Booking: ${bookingId} - ${formData.eventName}</h1>
   </div>
 
   <!-- Body -->
@@ -36,6 +106,14 @@ export const sendAdminNotification = async (db, formData) => {
     <p>A new booking request has been submitted. Details are below:</p>
 
     <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+              <tr>
+        <td style="padding: 8px; font-weight: bold;">Booking Id:</td>
+        <td style="padding: 8px;">${bookingId}</td>
+      </tr>
+          <tr>
+        <td style="padding: 8px; font-weight: bold;">Event:</td>
+        <td style="padding: 8px;">${formData.eventName}</td>
+      </tr>
       <tr>
         <td style="padding: 8px; font-weight: bold; width: 120px;">Organizer:</td>
         <td style="padding: 8px;">${formData.fullName}</td>
@@ -44,10 +122,7 @@ export const sendAdminNotification = async (db, formData) => {
         <td style="padding: 8px; font-weight: bold;">Email:</td>
         <td style="padding: 8px;">${formData.email}</td>
       </tr>
-      <tr>
-        <td style="padding: 8px; font-weight: bold;">Event:</td>
-        <td style="padding: 8px;">${formData.eventName}</td>
-      </tr>
+
       <tr style="background-color: #f9f9f9;">
         <td style="padding: 8px; font-weight: bold;">Locations:</td>
         <td style="padding: 8px;">${formData.locations.join(", ")}</td>
@@ -59,6 +134,15 @@ export const sendAdminNotification = async (db, formData) => {
       <tr style="background-color: #f9f9f9;">
         <td style="padding: 8px; font-weight: bold;">Time:</td>
         <td style="padding: 8px;">${formData.timeRange}</td>
+      </tr>
+            <tr style="background-color: #f9f9f9;">
+        <td style="padding: 8px; font-weight: bold;">Expected People:</td>
+        <td style="padding: 8px;">${formData.expectedPeople}</td>
+      </tr>
+            </tr>
+            <tr style="background-color: #f9f9f9;">
+        <td style="padding: 8px; font-weight: bold;">Expected Cars:</td>
+        <td style="padding: 8px;">${formData.expectedCars}</td>
       </tr>
       <tr>
         <td style="padding: 8px; font-weight: bold;">Phone:</td>
@@ -89,16 +173,18 @@ export const sendAdminNotification = async (db, formData) => {
 </div>
 `,
         },
-      })
+      }),
     );
 
     await Promise.all(mailPromises);
-    
-  } catch (error) {
-  }
+  } catch (error) {}
 };
 
-// 2. NOTIFY USER (Triggered by Admin when decisions are finished)
+
+
+//----------------------------------------------------------------------------
+//SEND Update to User (initiated by Admin click) upon booking decision made
+//----------------------------------------------------------------------------
 export const sendUserConfirmation = async (db, group) => {
   // Generate the HTML list of statuses for the email
   const locationListHtml = group.bookings
@@ -110,24 +196,24 @@ export const sendUserConfirmation = async (db, group) => {
         ${b.status}
       </span>
       ${b.rejectionReason ? `<br/><small style="color: #666; font-style: italic;">Note: ${b.rejectionReason}</small>` : ""}
-    </li>`
+    </li>`,
     )
     .join("");
 
   try {
     // A. Add to Mail Collection
     await addDoc(collection(db, "mail"), {
-      to: group.requestedBy,
+      to: group.requestedByEmail,
       message: {
-        subject: `Update: Your Booking for ${group.eventName}`,
+        subject: `Booking Request Update: ${group.bookingId} - ${group.eventName}`,
         html: `
           <div style="font-family: sans-serif; max-width: 600px; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
             <div style="background-color: #1976d2; padding: 20px; text-align: center; color: white;">
-              <h2 style="margin:0;">Booking Decision</h2>
+              <h2 style="margin:0;">Booking Request Update: ${group.bookingId} - ${group.eventName}</h2>
             </div>
             <div style="padding: 20px; line-height: 1.6;">
               <p>Assalam o Alaikum <strong>${group.requestedByName}</strong>,</p>
-              <p>The admin has finished reviewing your request for <strong>${group.eventName}</strong>.</p>
+              <p>The booking request for <strong>${group.eventName} has been reviewed.</strong>.</p>
               <div style="margin: 20px 0;">
                 ${locationListHtml}
               </div>
@@ -149,46 +235,36 @@ export const sendUserConfirmation = async (db, group) => {
     const batch = writeBatch(db);
     group.bookings.forEach((b) => {
       const ref = doc(db, "bookings", b.id);
-      batch.update(ref, { userNotified: true, notifiedAt: new Date().toISOString() });
+      batch.update(ref, {
+        userNotified: true,
+        notifiedAt: new Date().toISOString(),
+      });
     });
     await batch.commit();
-
   } catch (error) {
     throw error;
   }
 };
 
-// 3. INITIAL SUBMISSION (The Batch Create)
-export const submitBookingBatch = async (db, user, formData, locations) => {
-  const batch = writeBatch(db);
-  const groupId = uuidv4();
 
-  for (const locationName of locations) {
-    
-    const customId = `${formData.date}_${formData.eventName.replace(/\s+/g, '')}_${locationName.replace(/\s+/g, '')}`;
-    const newDocRef = doc(db, "bookings",customId);
-    batch.set(newDocRef, {
-      ...formData,
-      location: locationName,
-      status: "Pending",
-      userNotified: false, // Track if decision email has been sent
-      requestedBy: user.email,
-      requestedByName: formData.fullName,
-      requestedAt: new Date().toISOString(),
-      groupId: groupId,
-    });
-  }
-  await batch.commit();
-  return { groupId };
-};
 
-// 4. USER ACKNOWLEDGMENT EMAIL (Immediate upon booking submission)
-export const sendUserAcknowledgement = async (db, userEmail, userName, formData) => {
+
+
+//----------------------------------------------------------------------------
+//SEND Acknowledgement to User upon booking request
+//----------------------------------------------------------------------------
+export const sendUserAcknowledgement = async (
+  db,
+  userEmail,
+  userName,
+  formData,
+  bookingId,
+) => {
   try {
     await addDoc(collection(db, "mail"), {
       to: userEmail,
       message: {
-        subject: `Booking Request Received: ${formData.eventName}`,
+        subject: `Booking Request Received: ${bookingId} - ${formData.eventName}`,
         html: `
           <div style="font-family: sans-serif; max-width: 600px; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
             <div style="background-color: #1976d2; padding: 20px; text-align: center; color: white;">
@@ -198,8 +274,12 @@ export const sendUserAcknowledgement = async (db, userEmail, userName, formData)
               <p>Assalam o Alaikum <strong>${userName}</strong>,</p>
               <p>Your booking request for <strong>${formData.eventName}</strong> </strong> has been successfully received.</p>
               
-              <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
-                        <tr>
+       <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+              <tr>
+        <td style="padding: 8px; font-weight: bold;">Booking Id:</td>
+        <td style="padding: 8px;">${bookingId}</td>
+      </tr>
+          <tr>
         <td style="padding: 8px; font-weight: bold;">Event:</td>
         <td style="padding: 8px;">${formData.eventName}</td>
       </tr>
@@ -223,6 +303,15 @@ export const sendUserAcknowledgement = async (db, userEmail, userName, formData)
       <tr style="background-color: #f9f9f9;">
         <td style="padding: 8px; font-weight: bold;">Time:</td>
         <td style="padding: 8px;">${formData.fromTime} - ${formData.toTime}</td>
+      </tr>
+            <tr style="background-color: #f9f9f9;">
+        <td style="padding: 8px; font-weight: bold;">Expected People:</td>
+        <td style="padding: 8px;">${formData.expectedPeople}</td>
+      </tr>
+            </tr>
+            <tr style="background-color: #f9f9f9;">
+        <td style="padding: 8px; font-weight: bold;">Expected Cars:</td>
+        <td style="padding: 8px;">${formData.expectedCars}</td>
       </tr>
       <tr>
         <td style="padding: 8px; font-weight: bold;">Phone:</td>
@@ -249,8 +338,6 @@ export const sendUserAcknowledgement = async (db, userEmail, userName, formData)
         `,
       },
     });
-
-
   } catch (error) {
     throw error;
   }

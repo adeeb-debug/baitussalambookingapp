@@ -1,36 +1,68 @@
 import React, { useState, useEffect } from "react";
-import { Button, Typography, CircularProgress, Alert, Box, FormControlLabel, Checkbox } from "@mui/material";
+import {
+  Button,
+  Typography,
+  CircularProgress,
+  Alert,
+  Box,
+  FormControlLabel,
+  Checkbox,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+} from "@mui/material";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import dayjs from "dayjs";
 import { db } from "../firebase/firebaseConfig";
 import { LOCATIONS } from "../utils/constants";
 import { overlaps } from "../utils/timeUtils";
-import { sendAdminNotification, submitBookingBatch, sendUserAcknowledgement } from "../utils/bookingService";
+import {
+  sendAdminNotification,
+  submitBookingBatch,
+  sendUserAcknowledgement,
+} from "../utils/bookingService";
 import BookingFormFields from "./BookingFormFields";
 
 export default function BookingForm({ user, bookings }) {
-  const [formData, setFormData] = useState({
-    date: "", fromTime: "", toTime: "", locations: [],
-    jamaat: "", eventName: "", expectedCars: "",
-    expectedPeople: "", phoneNumber: "", fullName: user?.displayName || ""
+  const INITIAL_FORM_DATA = (user) => ({
+    date: "",
+    fromTime: "",
+    toTime: "",
+    locations: [],
+    jamaat: "",
+    eventName: "",
+    expectedCars: "",
+    expectedPeople: "",
+    phoneNumber: "",
+    fullName: user?.displayName || "",
   });
+  const [formData, setFormData] = useState(INITIAL_FORM_DATA(user));
   const [availableLocations, setAvailableLocations] = useState(LOCATIONS);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [status, setStatus] = useState({ error: "", success: false });
   const [acceptedDisclaimer, setAcceptedDisclaimer] = useState(false);
-
+  const [successPopupOpen, setSuccessPopupOpen] = useState(false);
 
   useEffect(() => {
     if (!formData.date || !formData.fromTime || !formData.toTime) return;
     const reqStart = dayjs(`2026-01-01T${formData.fromTime}`);
     const reqEnd = dayjs(`2026-01-01T${formData.toTime}`);
 
-    const filtered = LOCATIONS.filter((loc) => !bookings.some((b) => {
-      if (b.location !== loc.name || b.date !== formData.date) return false;
-      if (b.status === "Cancelled" || b.status === "Rejected") return false;
-      return overlaps(reqStart.toDate(), reqEnd.toDate(), dayjs(`2026-01-01T${b.fromTime}`).toDate(), dayjs(`2026-01-01T${b.toTime}`).toDate());
-    }));
+    const filtered = LOCATIONS.filter(
+      (loc) =>
+        !bookings.some((b) => {
+          if (b.location !== loc.name || b.date !== formData.date) return false;
+          if (b.status === "Cancelled" || b.status === "Rejected") return false;
+          return overlaps(
+            reqStart.toDate(),
+            reqEnd.toDate(),
+            dayjs(`2026-01-01T${b.fromTime}`).toDate(),
+            dayjs(`2026-01-01T${b.toTime}`).toDate(),
+          );
+        }),
+    );
     setAvailableLocations(filtered);
   }, [formData.date, formData.fromTime, formData.toTime, bookings]);
 
@@ -40,20 +72,48 @@ export default function BookingForm({ user, bookings }) {
       return;
     }
     if (!acceptedDisclaimer) {
-  setStatus({
-    error: "You must accept the responsibility disclaimer before submitting.",
-    success: false
-  });
-  return;
-}
+      setStatus({
+        error:
+          "You must accept the responsibility disclaimer before submitting.",
+        success: false,
+      });
+      return;
+    }
 
     setIsSubmitting(true);
     try {
-      await submitBookingBatch(db, user, formData, formData.locations);
-      await sendAdminNotification(db, { ...formData, email: user.email, timeRange: `${formData.fromTime}-${formData.toTime}` });
-      await sendUserAcknowledgement(db, user.email, formData.fullName, formData);
+      const bookingCreated = await submitBookingBatch(
+        db,
+        user,
+        formData,
+        formData.locations,
+      );
 
-      setStatus({ error: "", success: true });
+  if (!bookingCreated || bookingCreated.length === 0) {
+    throw new Error("Booking could not be created");
+  }
+  
+      await sendAdminNotification(db, {
+        ...formData,
+        email: user.email,
+        timeRange: `${formData.fromTime}-${formData.toTime}`,
+      },
+      bookingCreated.bookingId
+    );
+      await sendUserAcknowledgement(
+        db,
+        user.email,
+        formData.fullName,
+        formData,
+        bookingCreated.bookingId
+      );
+
+      setStatus({ error: "", success: false }); // Clear previous alerts
+      setSuccessPopupOpen(true); // Open the success popup
+
+      setFormData(INITIAL_FORM_DATA(user));
+      setAcceptedDisclaimer(false);
+      setAvailableLocations(LOCATIONS);
     } catch (e) {
       setStatus({ error: e.message, success: false });
     } finally {
@@ -63,49 +123,63 @@ export default function BookingForm({ user, bookings }) {
 
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
-      <Box sx={{ p: 0 }}> {/* ✅ Removed container padding to prevent double-boxing */}
-        <Typography 
-          variant="h5" 
-          sx={{ 
-            fontWeight: 700, 
-            color: "primary.main", 
-            mb: 2, 
-            textAlign: "left" 
+      <Box sx={{ p: 0 }}>
+        {" "}
+        {/* ✅ Removed container padding to prevent double-boxing */}
+        <Typography
+          variant="h5"
+          sx={{
+            fontWeight: 700,
+            color: "primary.main",
+            mb: 2,
+            textAlign: "left",
           }}
         >
           📝 Request a Booking
         </Typography>
-
-        {status.error && <Alert severity="error" sx={{ mb: 2 }}>{status.error}</Alert>}
-        {status.success && <Alert severity="success" sx={{ mb: 2 }}>Booking Sent!</Alert>}
-
+        {status.error && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {status.error}
+          </Alert>
+        )}
+        {status.success && (
+          <Alert severity="success" sx={{ mb: 2 }}>
+            Booking Sent!
+          </Alert>
+        )}
         {user ? (
           <Box sx={{ mt: 1 }}>
-            <BookingFormFields 
-              formData={formData} 
-              setFormData={setFormData} 
-              availableLocations={availableLocations} 
+            <BookingFormFields
+              formData={formData}
+              setFormData={setFormData}
+              availableLocations={availableLocations}
             />
 
             <Box sx={{ mt: 2 }}>
-<Alert severity="info" sx={{ mb: 1 }}>
-    <ul style={{ margin: 0, paddingLeft: "1.25rem" }}>
-      <li>Jamaat Jalsa Jaat or meetings with Ameer Sb will take precedence over any other booked event.</li>
-      <li>You will be responsible for the cleaning and tidiness of all equipment and areas used during your booking.</li>
-      <li>There won’t be any events on Fridays before 3:00 PM.</li>
-    </ul>
-  </Alert>
+              <Alert severity="info" sx={{ mb: 1 }}>
+                <ul style={{ margin: 0, paddingLeft: "1.25rem" }}>
+                  <li>
+                    Jamaat Jalsa Jaat or meetings with Ameer Sb will take
+                    precedence over any other booked event.
+                  </li>
+                  <li>
+                    You will be responsible for the cleaning and tidiness of all
+                    equipment and areas used during your booking.
+                  </li>
+                  <li>There won’t be any events on Fridays before 3:00 PM.</li>
+                </ul>
+              </Alert>
 
-  <FormControlLabel
-    control={
-      <Checkbox
-        checked={acceptedDisclaimer}
-        onChange={(e) => setAcceptedDisclaimer(e.target.checked)}
-      />
-    }
-    label="I understand and accept the conditions."
-  />
-</Box>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={acceptedDisclaimer}
+                    onChange={(e) => setAcceptedDisclaimer(e.target.checked)}
+                  />
+                }
+                label="I understand and accept the conditions."
+              />
+            </Box>
 
             <Button
               variant="contained"
@@ -113,13 +187,15 @@ export default function BookingForm({ user, bookings }) {
               size="large"
               disabled={isSubmitting}
               onClick={handleSend}
-              sx={{ 
-                mt: 3, 
-                py: 1.5, 
+              sx={{
+                mt: 3,
+                py: 1.5,
                 borderRadius: 2, // Matches your theme's app-like feel
-                fontWeight: 600 
+                fontWeight: 600,
               }}
-              startIcon={isSubmitting && <CircularProgress size={20} color="inherit" />}
+              startIcon={
+                isSubmitting && <CircularProgress size={20} color="inherit" />
+              }
             >
               {isSubmitting ? "Submitting..." : "Submit Request"}
             </Button>
@@ -130,6 +206,28 @@ export default function BookingForm({ user, bookings }) {
           </Alert>
         )}
       </Box>
+      <Dialog
+        open={successPopupOpen}
+        onClose={() => setSuccessPopupOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>✅ Request Submitted</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Jazakallah for submitting your request. The request will be reviewed
+            and we will get back to you as soon as possible.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => setSuccessPopupOpen(false)}
+            variant="contained"
+          >
+            OK
+          </Button>
+        </DialogActions>
+      </Dialog>
     </LocalizationProvider>
   );
 }

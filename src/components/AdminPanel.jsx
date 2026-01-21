@@ -27,11 +27,11 @@ import { sendUserConfirmation } from "../utils/bookingService"; // Import the ne
 import PendingGroupRow from "./PendingGroupRow";
 
 export default function AdminPanel({ user, isAdmin, bookings, loading }) {
-
   const [filterStatus, setFilterStatus] = useState(STATUSES.PENDING);
   const [filterLocation, setFilterLocation] = useState(STATUSES.ALL);
 
-  const [individualActionLoadingId, setIndividualActionLoadingId] = useState(null);
+  const [individualActionLoadingId, setIndividualActionLoadingId] =
+    useState(null);
   const [groupActionLoadingId, setGroupActionLoadingId] = useState(null);
 
   const uniqueLocations = useMemo(() => {
@@ -43,8 +43,9 @@ export default function AdminPanel({ user, isAdmin, bookings, loading }) {
     // Logic: If filter is "Pending", only show bookings that haven't been notified yet
     // This keeps the "Pending" queue clean.
     const statusFiltered = bookings.filter((b) => {
-      const matchesStatus = filterStatus === STATUSES.ALL || b.status === filterStatus;
-      
+      const matchesStatus =
+        filterStatus === STATUSES.ALL || b.status === filterStatus;
+
       // If looking at Pending queue, hide ones already notified
       if (filterStatus === STATUSES.PENDING) {
         return matchesStatus && !b.userNotified;
@@ -57,11 +58,18 @@ export default function AdminPanel({ user, isAdmin, bookings, loading }) {
 
   // ---------------- EMAIL ACTION ----------------
   const handleSendEmail = async (group) => {
-    if (!window.confirm(`Send final decision email to ${group.requestedBy}?`)) return;
+    if (
+      !window.confirm(`Send final decision email to ${group.requestedByEmail}?`)
+    )
+      return;
 
     setGroupActionLoadingId(group.groupId);
     try {
-      await sendUserConfirmation(db, group);
+      await sendUserConfirmation(db, {
+        ...group,
+        eventName: group.eventName, // ensure eventName exists
+        requestedByEmail: group.requestedByEmail, // or whatever email field you have
+      });
       alert("Success: User has been notified.");
     } catch (err) {
       console.error(err);
@@ -73,10 +81,15 @@ export default function AdminPanel({ user, isAdmin, bookings, loading }) {
 
   // ---------------- GROUP ACTION ----------------
   const handleGroupAction = async (group, action) => {
-    const pendingBookings = group.bookings.filter((b) => b.status === "Pending");
+    const pendingBookings = group.bookings.filter(
+      (b) => b.status === "Pending",
+    );
     if (pendingBookings.length === 0) return;
 
-    if (!window.confirm(`Change ${pendingBookings.length} bookings to ${action}?`)) return;
+    if (
+      !window.confirm(`Change ${pendingBookings.length} bookings to ${action}?`)
+    )
+      return;
 
     setGroupActionLoadingId(group.groupId);
     try {
@@ -123,7 +136,8 @@ export default function AdminPanel({ user, isAdmin, bookings, loading }) {
     );
   }
 
-  const queueTitle = filterStatus === STATUSES.ALL ? "All Bookings" : `${filterStatus} Bookings`;
+  const queueTitle =
+    filterStatus === STATUSES.ALL ? "All Bookings" : `${filterStatus} Bookings`;
 
   return (
     <Box>
@@ -147,7 +161,9 @@ export default function AdminPanel({ user, isAdmin, bookings, loading }) {
                 onChange={(e) => setFilterStatus(e.target.value)}
               >
                 {Object.values(STATUSES).map((s) => (
-                  <MenuItem key={s} value={s}>{s}</MenuItem>
+                  <MenuItem key={s} value={s}>
+                    {s}
+                  </MenuItem>
                 ))}
               </Select>
             </FormControl>
@@ -162,7 +178,9 @@ export default function AdminPanel({ user, isAdmin, bookings, loading }) {
                 onChange={(e) => setFilterLocation(e.target.value)}
               >
                 {uniqueLocations.map((loc) => (
-                  <MenuItem key={loc} value={loc}>{loc}</MenuItem>
+                  <MenuItem key={loc} value={loc}>
+                    {loc}
+                  </MenuItem>
                 ))}
               </Select>
             </FormControl>
@@ -178,7 +196,7 @@ export default function AdminPanel({ user, isAdmin, bookings, loading }) {
               <TableCell />
               <TableCell>Event</TableCell>
               <TableCell>Date / Time</TableCell>
-              <TableCell>Contact</TableCell>
+              <TableCell>Organiser</TableCell>
               <TableCell>Phone</TableCell>
               <TableCell align="center">People / Cars</TableCell>
               <TableCell align="center">Status</TableCell>

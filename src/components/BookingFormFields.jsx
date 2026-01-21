@@ -8,7 +8,7 @@ import {
   MenuItem,
   Chip,
   useMediaQuery,
-  useTheme
+  useTheme,
 } from "@mui/material";
 import { DatePicker, TimePicker } from "@mui/x-date-pickers";
 import dayjs from "dayjs";
@@ -17,7 +17,7 @@ import { JAMAAT_OPTIONS } from "../utils/constants";
 export default function BookingFormFields({
   formData,
   setFormData,
-  availableLocations
+  availableLocations,
 }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
@@ -32,7 +32,7 @@ export default function BookingFormFields({
   const minDate = dayjs().add(2, "day");
   const maxDate = dayjs().add(2, "month");
 
-    const blockTyping = (e) => {
+  const blockTyping = (e) => {
     e.preventDefault();
   };
 
@@ -46,34 +46,33 @@ export default function BookingFormFields({
         onChange={(e) => handleChange("fullName")(e.target.value)}
       />
 
-<TextField
-  label="Phone Number"
-  placeholder="04XXXXXXXX"
-  fullWidth
-  value={formData.phoneNumber}
-  onChange={(e) => {
-    // 1️⃣ Remove anything that is not a digit
-    const digitsOnly = e.target.value.replace(/\D/g, "");
+      <TextField
+        label="Phone Number"
+        placeholder="04XXXXXXXX"
+        fullWidth
+        value={formData.phoneNumber}
+        onChange={(e) => {
+          // 1️⃣ Remove anything that is not a digit
+          const digitsOnly = e.target.value.replace(/\D/g, "");
 
-    handleChange("phoneNumber")(digitsOnly);
-  }}
-  inputProps={{
-    inputMode: "numeric",   // 📱 mobile numeric keyboard
-    pattern: "[0-9]*",
-    maxLength: 12           // enough for 614XXXXXXXX
-  }}
-  error={
-    formData.phoneNumber.length > 0 &&
-    !/^((04\d{8})|(614\d{8})|(0[2378]\d{8}))$/.test(formData.phoneNumber)
-  }
-  helperText={
-    formData.phoneNumber.length > 0 &&
-    !/^((04\d{8})|(614\d{8})|(0[2378]\d{8}))$/.test(formData.phoneNumber)
-      ? "Enter a valid phone number"
-      : " "
-  }
-/>
-
+          handleChange("phoneNumber")(digitsOnly);
+        }}
+        inputProps={{
+          inputMode: "numeric", // 📱 mobile numeric keyboard
+          pattern: "[0-9]*",
+          maxLength: 12, // enough for 614XXXXXXXX
+        }}
+        error={
+          formData.phoneNumber.length > 0 &&
+          !/^((04\d{8})|(614\d{8})|(0[2378]\d{8}))$/.test(formData.phoneNumber)
+        }
+        helperText={
+          formData.phoneNumber.length > 0 &&
+          !/^((04\d{8})|(614\d{8})|(0[2378]\d{8}))$/.test(formData.phoneNumber)
+            ? "Enter a valid phone number"
+            : " "
+        }
+      />
 
       <FormControl fullWidth sx={{ mb: fieldSpacing }}>
         <InputLabel>Jamaat</InputLabel>
@@ -90,7 +89,6 @@ export default function BookingFormFields({
         </Select>
       </FormControl>
 
-      {/* ✅ DATE PICKER WITH ALL RULES APPLIED */}
       <DatePicker
         label="Date"
         format="DD-MM-YYYY"
@@ -105,46 +103,68 @@ export default function BookingFormFields({
           textField: {
             fullWidth: true,
             sx: { mb: fieldSpacing },
-            inputProps: {
-              readOnly: true // 🚫 disables manual typing
+            helperText: "Bookings must be made at least 2 days in advance",
+
+            InputProps: {
+              readOnly: true, // visual + accessibility
             },
-            helperText: "Bookings must be made at least 2 days in advance"
-          }
+
+            onKeyDown: (e) => {
+              e.preventDefault(); // 🚫 blocks ALL typing
+            },
+          },
         }}
       />
 
       <Box sx={{ display: "flex", gap: 2, mb: fieldSpacing }}>
-        
         <TimePicker
           label="From"
           format="HH:mm"
           value={formData.fromTime ? dayjs(formData.fromTime, "HH:mm") : null}
-          onChange={(val) =>
-            handleChange("fromTime")(val ? val.format("HH:mm") : "")
-          }
+          minTime={dayjs("05:00", "HH:mm")}
+          maxTime={dayjs("20:00", "HH:mm")}
+          onChange={(val) => {
+            const newFrom = val ? val.format("HH:mm") : "";
+            handleChange("fromTime")(newFrom);
+
+            // Optional: if To time is now before From, reset To
+            if (
+              formData.toTime &&
+              dayjs(formData.toTime, "HH:mm").isBefore(dayjs(newFrom, "HH:mm"))
+            ) {
+              handleChange("toTime")("");
+            }
+          }}
           slotProps={{
             textField: {
               fullWidth: true,
-                          onKeyDown: blockTyping,
-            onPaste: blockTyping,
-              InputProps: { readOnly: true } // optional, keeps UX consistent
-            }
+              onKeyDown: blockTyping,
+              onPaste: blockTyping,
+              InputProps: { readOnly: true },
+            },
           }}
         />
+
         <TimePicker
           label="To"
           format="HH:mm"
           value={formData.toTime ? dayjs(formData.toTime, "HH:mm") : null}
+          minTime={
+            formData.fromTime
+              ? dayjs(formData.fromTime, "HH:mm")
+              : dayjs("05:00", "HH:mm")
+          }
+          maxTime={dayjs("20:00", "HH:mm")}
           onChange={(val) =>
             handleChange("toTime")(val ? val.format("HH:mm") : "")
           }
           slotProps={{
             textField: {
               fullWidth: true,
-                          onKeyDown: blockTyping,
-            onPaste: blockTyping,
-              InputProps: { readOnly: true }
-            }
+              onKeyDown: blockTyping,
+              onPaste: blockTyping,
+              InputProps: { readOnly: true },
+            },
           }}
         />
       </Box>
@@ -191,17 +211,20 @@ export default function BookingFormFields({
       <Box sx={{ display: "flex", gap: 2, mb: isMobile ? 2 : 4 }}>
         <TextField
           label="People"
-          type="number"
           fullWidth
+          inputMode="numeric"
+          pattern="[0-9]*"
           value={formData.expectedPeople}
           onChange={(e) =>
             handleChange("expectedPeople")(e.target.value.replace(/\D/g, ""))
           }
         />
+
         <TextField
           label="Cars"
-          type="number"
           fullWidth
+          inputMode="numeric"
+          pattern="[0-9]*"
           value={formData.expectedCars}
           onChange={(e) =>
             handleChange("expectedCars")(e.target.value.replace(/\D/g, ""))
