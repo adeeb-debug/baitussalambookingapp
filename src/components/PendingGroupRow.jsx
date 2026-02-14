@@ -33,6 +33,8 @@ export default function PendingGroupRow({
   handleSendEmail, // New prop from AdminPanel
   individualActionLoadingId,
   groupActionLoadingId,
+  isAdmin,
+  
 }) {
   const theme = useTheme();
   const [expanded, setExpanded] = useState(false);
@@ -97,11 +99,12 @@ export default function PendingGroupRow({
         <TableCell align="center">
           {pendingCount} Pending / {group.bookings.length}
         </TableCell>
-
+{isAdmin && (
         <TableCell>
           {/* CASE 1: Still have pending items - Show Mass Actions */}
           {pendingCount > 0 ? (
             <Box sx={{ display: "flex", gap: 1 }}>
+              
               <Button
                 size="small"
                 color="success"
@@ -144,6 +147,7 @@ export default function PendingGroupRow({
             </Box>
           )}
         </TableCell>
+)}
       </TableRow>
 
       <TableRow>

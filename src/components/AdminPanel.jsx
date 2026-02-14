@@ -26,7 +26,7 @@ import { groupBookings } from "../utils/groupBookings";
 import { sendUserConfirmation } from "../utils/bookingService"; // Import the new service
 import PendingGroupRow from "./PendingGroupRow";
 
-export default function AdminPanel({ user, isAdmin, bookings, loading }) {
+export default function AdminPanel({isAdmin, bookings, loading }) {
   const [filterStatus, setFilterStatus] = useState(STATUSES.PENDING);
   const [filterLocation, setFilterLocation] = useState(STATUSES.ALL);
 
@@ -55,6 +55,7 @@ export default function AdminPanel({ user, isAdmin, bookings, loading }) {
 
     return groupBookings(statusFiltered, filterLocation);
   }, [bookings, filterStatus, filterLocation]);
+  
 
   // ---------------- EMAIL ACTION ----------------
   const handleSendEmail = async (group) => {
@@ -123,10 +124,6 @@ export default function AdminPanel({ user, isAdmin, bookings, loading }) {
     }
   };
 
-  // ---------------- GUARDS ----------------
-  if (!user || !isAdmin) {
-    return <Alert severity="error">Admin Panel access denied.</Alert>;
-  }
 
   if (loading) {
     return (
@@ -200,7 +197,7 @@ export default function AdminPanel({ user, isAdmin, bookings, loading }) {
               <TableCell>Phone</TableCell>
               <TableCell align="center">People / Cars</TableCell>
               <TableCell align="center">Status</TableCell>
-              <TableCell align="right">Actions</TableCell>
+              {isAdmin && <TableCell align="right">Actions</TableCell>}
             </TableRow>
           </TableHead>
 
@@ -221,6 +218,7 @@ export default function AdminPanel({ user, isAdmin, bookings, loading }) {
                   handleSendEmail={handleSendEmail} // Pass the new handler here
                   individualActionLoadingId={individualActionLoadingId}
                   groupActionLoadingId={groupActionLoadingId}
+                  isAdmin={isAdmin}
                 />
               ))
             )}

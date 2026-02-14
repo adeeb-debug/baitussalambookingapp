@@ -27,17 +27,18 @@ import BookingFormFields from "./BookingFormFields";
 
 export default function BookingForm({ user, bookings }) {
   const INITIAL_FORM_DATA = (user) => ({
+    fullName: user?.displayName || "",
+    phoneNumber: "",
+    jamaat: "",
     date: "",
     fromTime: "",
     toTime: "",
     locations: [],
-    jamaat: "",
     eventName: "",
-    expectedCars: "",
     expectedPeople: "",
-    phoneNumber: "",
-    fullName: user?.displayName || "",
+    expectedCars: "",
   });
+
   const [formData, setFormData] = useState(INITIAL_FORM_DATA(user));
   const [availableLocations, setAvailableLocations] = useState(LOCATIONS);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -45,8 +46,26 @@ export default function BookingForm({ user, bookings }) {
   const [acceptedDisclaimer, setAcceptedDisclaimer] = useState(false);
   const [successPopupOpen, setSuccessPopupOpen] = useState(false);
 
+  /** 🔐 CENTRAL VALIDATION */
+  const validateForm = () => {
+    return (
+      formData.fullName &&
+      formData.phoneNumber &&
+      formData.jamaat &&
+      formData.date &&
+      formData.fromTime &&
+      formData.toTime &&
+      formData.locations.length > 0 &&
+      formData.eventName &&
+      formData.expectedPeople &&
+      formData.expectedCars
+    );
+  };
+
+  /** 📍 LOCATION AVAILABILITY */
   useEffect(() => {
     if (!formData.date || !formData.fromTime || !formData.toTime) return;
+
     const reqStart = dayjs(`2026-01-01T${formData.fromTime}`);
     const reqEnd = dayjs(`2026-01-01T${formData.toTime}`);
 
@@ -55,22 +74,31 @@ export default function BookingForm({ user, bookings }) {
         !bookings.some((b) => {
           if (b.location !== loc.name || b.date !== formData.date) return false;
           if (b.status === "Cancelled" || b.status === "Rejected") return false;
+
           return overlaps(
             reqStart.toDate(),
             reqEnd.toDate(),
             dayjs(`2026-01-01T${b.fromTime}`).toDate(),
-            dayjs(`2026-01-01T${b.toTime}`).toDate(),
+            dayjs(`2026-01-01T${b.toTime}`).toDate()
           );
-        }),
+        })
     );
+
     setAvailableLocations(filtered);
   }, [formData.date, formData.fromTime, formData.toTime, bookings]);
 
+  /** 🚀 SUBMIT */
   const handleSend = async () => {
-    if (!formData.eventName || formData.locations.length === 0) {
-      setStatus({ error: "Please fill in all fields.", success: false });
+    setStatus({ error: "", success: false });
+
+    if (!validateForm()) {
+      setStatus({
+        error: "Please complete all required fields before submitting.",
+        success: false,
+      });
       return;
     }
+
     if (!acceptedDisclaimer) {
       setStatus({
         error:
@@ -81,25 +109,29 @@ export default function BookingForm({ user, bookings }) {
     }
 
     setIsSubmitting(true);
+
     try {
       const bookingCreated = await submitBookingBatch(
         db,
         user,
         formData,
-        formData.locations,
+        formData.locations
       );
 
-  if (!bookingCreated || bookingCreated.length === 0) {
-    throw new Error("Booking could not be created");
-  }
-  
-      await sendAdminNotification(db, {
-        ...formData,
-        email: user.email,
-        timeRange: `${formData.fromTime}-${formData.toTime}`,
-      },
-      bookingCreated.bookingId
-    );
+      if (!bookingCreated || bookingCreated.length === 0) {
+        throw new Error("Booking could not be created");
+      }
+
+      await sendAdminNotification(
+        db,
+        {
+          ...formData,
+          email: user.email,
+          timeRange: `${formData.fromTime}-${formData.toTime}`,
+        },
+        bookingCreated.bookingId
+      );
+
       await sendUserAcknowledgement(
         db,
         user.email,
@@ -108,9 +140,7 @@ export default function BookingForm({ user, bookings }) {
         bookingCreated.bookingId
       );
 
-      setStatus({ error: "", success: false }); // Clear previous alerts
-      setSuccessPopupOpen(true); // Open the success popup
-
+      setSuccessPopupOpen(true);
       setFormData(INITIAL_FORM_DATA(user));
       setAcceptedDisclaimer(false);
       setAvailableLocations(LOCATIONS);
@@ -123,89 +153,69 @@ export default function BookingForm({ user, bookings }) {
 
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
-      <Box sx={{ p: 0 }}>
-        {" "}
-        {/* ✅ Removed container padding to prevent double-boxing */}
+      <Box>
         <Typography
           variant="h5"
-          sx={{
-            fontWeight: 700,
-            color: "primary.main",
-            mb: 2,
-            textAlign: "left",
-          }}
+          sx={{ fontWeight: 700, color: "primary.main", mb: 2 }}
         >
           📝 Request a Booking
         </Typography>
+
         {status.error && (
           <Alert severity="error" sx={{ mb: 2 }}>
             {status.error}
           </Alert>
         )}
-        {status.success && (
-          <Alert severity="success" sx={{ mb: 2 }}>
-            Booking Sent!
-          </Alert>
-        )}
+
         {user ? (
-          <Box sx={{ mt: 1 }}>
+          <>
             <BookingFormFields
               formData={formData}
               setFormData={setFormData}
               availableLocations={availableLocations}
             />
 
-            <Box sx={{ mt: 2 }}>
-              <Alert severity="info" sx={{ mb: 1 }}>
-                <ul style={{ margin: 0, paddingLeft: "1.25rem" }}>
-                  <li>
-                    Jamaat Jalsa Jaat or meetings with Ameer Sb will take
-                    precedence over any other booked event.
-                  </li>
-                  <li>
-                    You will be responsible for the cleaning and tidiness of all
-                    equipment and areas used during your booking.
-                  </li>
-                  <li>There won’t be any events on Fridays before 3:00 PM.</li>
-                </ul>
-              </Alert>
+            <Alert severity="info" sx={{ my: 2 }}>
+              <ul style={{ margin: 0, paddingLeft: "1.25rem" }}>
+                <li>
+                  Jamaat Jalsa or meetings with Ameer Sb take precedence.
+                </li>
+                <li>You are responsible for cleaning after the event.</li>
+                <li>No events on Fridays before 3:00 PM.</li>
+              </ul>
+            </Alert>
 
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={acceptedDisclaimer}
-                    onChange={(e) => setAcceptedDisclaimer(e.target.checked)}
-                  />
-                }
-                label="I understand and accept the conditions."
-              />
-            </Box>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={acceptedDisclaimer}
+                  onChange={(e) => setAcceptedDisclaimer(e.target.checked)}
+                />
+              }
+              label="I understand and accept the conditions."
+            />
 
             <Button
-              variant="contained"
               fullWidth
+              variant="contained"
               size="large"
+              sx={{ mt: 3, py: 1.5, fontWeight: 600 }}
               disabled={isSubmitting}
               onClick={handleSend}
-              sx={{
-                mt: 3,
-                py: 1.5,
-                borderRadius: 2, // Matches your theme's app-like feel
-                fontWeight: 600,
-              }}
               startIcon={
-                isSubmitting && <CircularProgress size={20} color="inherit" />
+                isSubmitting && (
+                  <CircularProgress size={20} color="inherit" />
+                )
               }
             >
               {isSubmitting ? "Submitting..." : "Submit Request"}
             </Button>
-          </Box>
+          </>
         ) : (
-          <Alert severity="info" sx={{ borderRadius: 2 }}>
-            Please sign in to make a booking.
-          </Alert>
+          <Alert severity="info">Please sign in to make a booking.</Alert>
         )}
       </Box>
+
       <Dialog
         open={successPopupOpen}
         onClose={() => setSuccessPopupOpen(false)}
@@ -215,15 +225,11 @@ export default function BookingForm({ user, bookings }) {
         <DialogTitle>✅ Request Submitted</DialogTitle>
         <DialogContent>
           <Typography>
-            Jazakallah for submitting your request. The request will be reviewed
-            and we will get back to you as soon as possible.
+            Jazakallah for submitting your request. We will review it shortly.
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button
-            onClick={() => setSuccessPopupOpen(false)}
-            variant="contained"
-          >
+          <Button onClick={() => setSuccessPopupOpen(false)} variant="contained">
             OK
           </Button>
         </DialogActions>

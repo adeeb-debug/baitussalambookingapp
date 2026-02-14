@@ -1,3 +1,4 @@
+// src/components/IndividualBookingListItem.jsx
 import React from "react";
 import {
   ListItem,
@@ -13,6 +14,7 @@ export default function IndividualBookingListItem({
   booking,
   handleIndividualAction,
   isActionLoading,
+  isAdmin, // ✅ Added
 }) {
   const theme = useTheme();
 
@@ -23,7 +25,8 @@ export default function IndividualBookingListItem({
     Cancelled: theme.palette.grey[500],
   };
 
-  const displayActions = booking.status === "Pending";
+  // Only show actions if Pending AND user is admin
+  const displayActions = isAdmin && booking.status === "Pending";
 
   return (
     <ListItem
@@ -67,11 +70,7 @@ export default function IndividualBookingListItem({
             }
             disabled={isActionLoading}
           >
-            {isActionLoading ? (
-              <CircularProgress size={16} />
-            ) : (
-              "Approve"
-            )}
+            {isActionLoading ? <CircularProgress size={16} /> : "Approve"}
           </Button>
 
           <Button
@@ -83,11 +82,19 @@ export default function IndividualBookingListItem({
             }
             disabled={isActionLoading}
           >
-            {isActionLoading ? (
-              <CircularProgress size={16} />
-            ) : (
-              "Reject"
-            )}
+            {isActionLoading ? <CircularProgress size={16} /> : "Reject"}
+          </Button>
+
+          <Button
+            size="small"
+            color="error"
+            variant="outlined"
+            onClick={() =>
+              handleIndividualAction(booking.id, "Delete")
+            }
+            disabled={isActionLoading}
+          >
+            Delete
           </Button>
         </Box>
       )}

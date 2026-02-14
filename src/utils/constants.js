@@ -8,6 +8,8 @@ export const LOCATIONS = [
     { id: "kitchen", name: "Kitchen" },
     { id: "library", name: "Library" },
     { id: "backyard-volleyball", name: "Backyard Volleyball" },
+    { id: "guest-room-1", name: "Guest Room 1" },
+    { id: "guest-room-2", name: "Guest Room 2" },
 ];
 
 export const JAMAAT_OPTIONS = [ 

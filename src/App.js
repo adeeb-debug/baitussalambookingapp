@@ -1,6 +1,6 @@
 // src/App.js - COMPLETE UPDATED CODE
 
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
   Box,
   AppBar,
@@ -13,6 +13,7 @@ import {
   useMediaQuery,
   Alert,
   IconButton,
+  CardMedia
 } from "@mui/material";
 import {
   LockOpenOutlined,
@@ -278,168 +279,177 @@ export default function App() {
   // ---------------------------------
 
   return (
-    <ThemeProvider theme={modernTheme}>
-      <Box
+  <ThemeProvider theme={modernTheme}>
+    <Box
+      sx={{
+        flexGrow: 1,
+        minHeight: "100vh",
+        maxWidth: "100vw",
+        overflowX: "hidden",
+        backgroundColor: "background.default",
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
+      {/* --- Header/AppBar --- */}
+      <AppBar
+        position="static"
+        color="transparent"
+        elevation={0}
         sx={{
-          flexGrow: 1,
-          minHeight: "100vh",
-          maxWidth: "100vw", // ✅ Strict viewport lock
-          overflowX: "hidden", // ✅ Prevent horizontal scroll globally
-          backgroundColor: "background.default",
-          display: "flex",
-          flexDirection: "column"
+          backgroundColor: "white",
+          color: "primary.main",
+          width: "100%",
+          borderBottom: "none",
         }}
       >
-        {/* --- Header/AppBar --- */}
-        <AppBar
-          position="static"
-          color="transparent"
-          elevation={0}
+        <Toolbar
           sx={{
-            backgroundColor: "background.default",
-            color: "primary.main",
-            width: "100%",
+            flexDirection: "row",
+            alignItems: "center",
+            py: isMobile ? 1 : 0,
           }}
         >
-          <Toolbar
+          {isMobile && (
+            <Navigation
+              user={user}
+              isAdmin={isAdmin}
+              currentView={currentView}
+              setCurrentView={setCurrentView}
+              isDrawerOpen={isDrawerOpen}
+              setIsDrawerOpen={setIsDrawerOpen}
+            />
+          )}
+
+          <Typography
+            variant="h6"
+            component="div"
             sx={{
-              flexDirection: "row",
+              flexGrow: 1,
+              color: "primary.dark",
+              display: "flex",
               alignItems: "center",
-              py: isMobile ? 1 : 0,
+              gap: 1,
+              fontSize: isMobile ? "0.9rem" : "1.25rem",
             }}
           >
-            {/* 1. Navigation on LEFT for Mobile only */}
-            {isMobile && (
-              <Navigation
-                user={user}
-                isAdmin={isAdmin}
-                currentView={currentView}
-                setCurrentView={setCurrentView}
-                isDrawerOpen={isDrawerOpen}
-                setIsDrawerOpen={setIsDrawerOpen}
+            Baitus Salam Booking Portal
+            {isAdmin && (
+              <VerifiedUser
+                sx={{ color: "secondary.main", ml: 0.5 }}
+                fontSize="small"
               />
             )}
+          </Typography>
 
-            {/* Title */}
-            <Typography
-              variant="h6"
-              component="div"
-              sx={{
-                flexGrow: 1,
-                color: "primary.dark",
-                display: "flex",
-                alignItems: "center",
-                gap: 1,
-                fontSize: isMobile ? '0.9rem' : '1.25rem' // Smaller font for mobile header
-              }}
-            >
-              Baitus Salam Booking Portal
-              {isAdmin && (
-                <VerifiedUser
-                  sx={{ color: "secondary.main", ml: 0.5 }}
-                  fontSize="small"
-                />
+          {!isMobile && (
+            <Navigation
+              user={user}
+              isAdmin={isAdmin}
+              currentView={currentView}
+              setCurrentView={setCurrentView}
+            />
+          )}
+
+          {user ? (
+            <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+              {!isMobile && (
+                <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                 <b>{getFirstName(user)}</b>
+                </Typography>
               )}
-            </Typography>
-
-            {/* 2. Navigation on RIGHT for Desktop only */}
-            {!isMobile && (
-              <Navigation
-                user={user}
-                isAdmin={isAdmin}
-                currentView={currentView}
-                setCurrentView={setCurrentView}
-                isDrawerOpen={isDrawerOpen}
-                setIsDrawerOpen={setIsDrawerOpen}
-              />
-            )}
-
-            {/* --- User/Auth Section --- */}
-            {user ? (
-              <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-                {!isMobile && (
-                  <Typography
-                    variant="body2"
-                    component="span"
-                    sx={{
-                      color: "text.secondary",
-                      display: "flex",
-                      alignItems: "center",
-                    }}
-                  >
-                    Hey there,
-                    <Typography
-                      variant="body2"
-                      component="span"
-                      sx={{ ml: 0.5, fontWeight: 600, color: "text.primary" }}
-                    >
-                      {getFirstName(user)}
-                    </Typography>
-                  </Typography>
-                )}
-
-                {isMobile ? (
-                  <IconButton
-                    color="primary"
-                    onClick={logout}
-                    size="medium"
-                    sx={{ mr: -1 }}
-                  >
-                    <LogoutOutlined />
-                  </IconButton>
-                ) : (
-                  <Button
-                    variant="outlined"
-                    color="primary"
-                    onClick={logout}
-                    size="medium"
-                    startIcon={<LogoutOutlined />}
-                  >
-                    Logout
-                  </Button>
-                )}
-              </Box>
-            ) : 
-            isMobile ? (
-              <IconButton
-                color="primary"
-                onClick={() => setIsSignInModalOpen(true)}
-              >
-                <LockOpenOutlined />
+              <IconButton color="primary" onClick={logout}>
+                <LogoutOutlined />
               </IconButton>
-            ) : (
-              <Button
-                variant="contained"
-                color="primary"
-                onClick={() => setIsSignInModalOpen(true)}
-                startIcon={<LockOpenOutlined />}
-              >
-                Sign In
-              </Button>
-            )}
-          </Toolbar>
-        </AppBar>
+            </Box>
+          ) : (
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={() => setIsSignInModalOpen(true)}
+              startIcon={<LockOpenOutlined />}
+            >
+              Sign In
+            </Button>
+          )}
+        </Toolbar>
+      </AppBar>
 
-        {/* --- Main Content Container --- */}
-        <Box
+      {/* --- Main Content Container with Permanent Hero --- */}
+      <Box
+        sx={{
+          mt: isMobile ? 0 : 4,
+          mb: 4,
+          px: isMobile ? 0 : 3,
+          width: "100%",
+          maxWidth: "1100px", // Keeps layout tight on large screens
+          mx: "auto",
+          boxSizing: "border-box",
+        }}
+      >
+        <Paper
+          elevation={isMobile ? 0 : 8}
           sx={{
-            mt: isMobile ? 0 : 4,
-            mb: 4,
-            px: isMobile ? 0 : 3, // Remove horizontal padding on mobile to use full width
-            width: "100%",
-            boxSizing: "border-box"
+            borderRadius: isMobile ? 0 : 4,
+            overflow: "hidden",
+            backgroundColor: "white",
           }}
         >
-          {renderContent()}
-        </Box>
+          {/* 1. Hero Image with Gradient Overlay */}
+          <Box sx={{ position: "relative", width: "100%",lineHeight: 0 }}>
+            <CardMedia
+              component="img"
+              image="/baitussalam.jpg" // 👈 Ensure this file is in your /public folder
+              alt="Baitus Salam"
+              sx={{
+                height: isMobile ? "180px" : "320px",
+                objectFit: "cover",
+                objectPosition: "center 30%",
+              }}
+            />
+            <Box
+              sx={{
+                position: "absolute",
+                bottom: -1,
+                left: 0,
+                width: "100%",
+                height: "60%",
+                background:
+                  "linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,1) 100%)",
+              }}
+            />
+          </Box>
 
-        {/* Sign-In Modal Component */}
-        <SignInModal
-          isOpen={isSignInModalOpen}
-          onClose={() => setIsSignInModalOpen(false)}
-          onLogin={login}
-        />
+          {/* 2. Content Wrapper */}
+          <Box sx={{ px: isMobile ? 2 : 5, pb: 5, mt: -2, position: "relative", zIndex: 1 }}>
+            
+            {/* Dynamic Title based on view */}
+            <Typography
+              variant={isMobile ? "h5" : "h4"}
+              sx={{
+                fontWeight: "bold",
+                color: "primary.main",
+                mb: 4,
+              }}
+            >
+              {currentView === VIEWS.REQUEST_BOOKING}
+              {currentView === VIEWS.MY_BOOKINGS}
+              {currentView === VIEWS.ALL_BOOKINGS}
+              {currentView === VIEWS.USER_MANAGER}
+            </Typography>
+
+            {/* 3. Render the Component (Form / List) */}
+            {renderContent()}
+          </Box>
+        </Paper>
       </Box>
-    </ThemeProvider>
-  );
+
+      <SignInModal
+        isOpen={isSignInModalOpen}
+        onClose={() => setIsSignInModalOpen(false)}
+        onLogin={login}
+      />
+    </Box>
+  </ThemeProvider>
+);
 }

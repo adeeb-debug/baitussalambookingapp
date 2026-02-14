@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   Box,
   TextField,
@@ -7,6 +7,7 @@ import {
   Select,
   MenuItem,
   Chip,
+  FormHelperText,
   useMediaQuery,
   useTheme,
 } from "@mui/material";
@@ -21,6 +22,12 @@ export default function BookingFormFields({
 }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  const baseDate = dayjs().startOf("day");
+
+  const [touched, setTouched] = useState({});
+
+  const markTouched = (field) =>
+    setTouched((prev) => ({ ...prev, [field]: true }));
 
   const handleChange = (field) => (value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -28,58 +35,70 @@ export default function BookingFormFields({
 
   const fieldSpacing = isMobile ? 2.5 : 3;
 
-  // ✅ Date constraints
   const minDate = dayjs().add(2, "day");
   const maxDate = dayjs().add(2, "month");
 
-  const blockTyping = (e) => {
-    e.preventDefault();
-  };
+  const blockTyping = (e) => e.preventDefault();
+
+  const isPhoneInvalid =
+    touched.phoneNumber &&
+    !/^((04\d{8})|(614\d{8})|(0[2378]\d{8}))$/.test(
+      formData.phoneNumber || ""
+    );
 
   return (
     <Box>
+      {/* Full Name */}
       <TextField
         label="Full Name"
+        required
         fullWidth
         sx={{ mb: fieldSpacing }}
         value={formData.fullName}
         onChange={(e) => handleChange("fullName")(e.target.value)}
+        onBlur={() => markTouched("fullName")}
+        error={touched.fullName && !formData.fullName}
+        helperText={
+          touched.fullName && !formData.fullName
+            ? "Full name is required"
+            : undefined
+        }
       />
 
+      {/* Phone Number */}
       <TextField
         label="Phone Number"
+        required
         placeholder="04XXXXXXXX"
         fullWidth
         value={formData.phoneNumber}
-        onChange={(e) => {
-          // 1️⃣ Remove anything that is not a digit
-          const digitsOnly = e.target.value.replace(/\D/g, "");
-
-          handleChange("phoneNumber")(digitsOnly);
-        }}
+        onChange={(e) =>
+          handleChange("phoneNumber")(e.target.value.replace(/\D/g, ""))
+        }
+        onBlur={() => markTouched("phoneNumber")}
         inputProps={{
-          inputMode: "numeric", // 📱 mobile numeric keyboard
+          inputMode: "numeric",
           pattern: "[0-9]*",
-          maxLength: 12, // enough for 614XXXXXXXX
+          maxLength: 12,
         }}
-        error={
-          formData.phoneNumber.length > 0 &&
-          !/^((04\d{8})|(614\d{8})|(0[2378]\d{8}))$/.test(formData.phoneNumber)
-        }
-        helperText={
-          formData.phoneNumber.length > 0 &&
-          !/^((04\d{8})|(614\d{8})|(0[2378]\d{8}))$/.test(formData.phoneNumber)
-            ? "Enter a valid phone number"
-            : " "
-        }
+        error={isPhoneInvalid}
+        helperText={isPhoneInvalid ? "Enter a valid phone number" : undefined}
+        sx={{ mb: fieldSpacing }}
       />
 
-      <FormControl fullWidth sx={{ mb: fieldSpacing }}>
+      {/* Jamaat */}
+      <FormControl
+        fullWidth
+        required
+        error={touched.jamaat && !formData.jamaat}
+        sx={{ mb: fieldSpacing }}
+      >
         <InputLabel>Jamaat</InputLabel>
         <Select
           value={formData.jamaat}
           label="Jamaat"
           onChange={(e) => handleChange("jamaat")(e.target.value)}
+          onBlur={() => markTouched("jamaat")}
         >
           {JAMAAT_OPTIONS.map((name) => (
             <MenuItem key={name} value={name}>
@@ -87,8 +106,14 @@ export default function BookingFormFields({
             </MenuItem>
           ))}
         </Select>
+        <FormHelperText>
+          {touched.jamaat && !formData.jamaat
+            ? "Please select a Jamaat"
+            : undefined}
+        </FormHelperText>
       </FormControl>
 
+      {/* Date */}
       <DatePicker
         label="Date"
         format="DD-MM-YYYY"
@@ -96,96 +121,128 @@ export default function BookingFormFields({
         minDate={minDate}
         maxDate={maxDate}
         disablePast
-        onChange={(val) =>
-          handleChange("date")(val ? val.format("DD-MM-YYYY") : "")
-        }
+        onChange={(val) => {
+          markTouched("date");
+          handleChange("date")(val ? val.format("DD-MM-YYYY") : "");
+        }}
         slotProps={{
           textField: {
+            required: true,
             fullWidth: true,
             sx: { mb: fieldSpacing },
-            helperText: "Bookings must be made at least 2 days in advance",
-
-            InputProps: {
-              readOnly: true, // visual + accessibility
-            },
-
-            onKeyDown: (e) => {
-              e.preventDefault(); // 🚫 blocks ALL typing
-            },
+            error: touched.date && !formData.date,
+            helperText:
+              touched.date && !formData.date
+                ? "Date is required (min 2 days ahead)"
+                : "Bookings must be made at least 2 days in advance",
+            InputProps: { readOnly: true },
+            onKeyDown: blockTyping,
           },
         }}
       />
 
-      <Box sx={{ display: "flex", gap: 2, mb: fieldSpacing }}>
-        <TimePicker
-          label="From"
-          format="HH:mm"
-          value={formData.fromTime ? dayjs(formData.fromTime, "HH:mm") : null}
-          minTime={dayjs("05:00", "HH:mm")}
-          maxTime={dayjs("20:00", "HH:mm")}
-          onChange={(val) => {
-            const newFrom = val ? val.format("HH:mm") : "";
-            handleChange("fromTime")(newFrom);
 
-            // Optional: if To time is now before From, reset To
-            if (
-              formData.toTime &&
-              dayjs(formData.toTime, "HH:mm").isBefore(dayjs(newFrom, "HH:mm"))
-            ) {
-              handleChange("toTime")("");
-            }
-          }}
-          slotProps={{
-            textField: {
-              fullWidth: true,
-              onKeyDown: blockTyping,
-              onPaste: blockTyping,
-              InputProps: { readOnly: true },
-            },
-          }}
-        />
+<Box sx={{ display: "flex", gap: 2, mb: fieldSpacing }}>
+  <TimePicker
+    label="From"
+    required
+    ampm={false}
+    format="HH:mm"
+    value={
+      formData.fromTime
+        ? baseDate
+            .hour(dayjs(formData.fromTime, "HH:mm").hour())
+            .minute(dayjs(formData.fromTime, "HH:mm").minute())
+        : null
+    }
+    minTime={baseDate.hour(5)}
+    maxTime={baseDate.hour(20)}
+    minutesStep={5}
+    onChange={(val) => {
+      markTouched("fromTime");
+      const newFrom = val ? val.format("HH:mm") : null;
+      handleChange("fromTime")(newFrom);
 
-        <TimePicker
-          label="To"
-          format="HH:mm"
-          value={formData.toTime ? dayjs(formData.toTime, "HH:mm") : null}
-          minTime={
-            formData.fromTime
-              ? dayjs(formData.fromTime, "HH:mm")
-              : dayjs("05:00", "HH:mm")
-          }
-          maxTime={dayjs("20:00", "HH:mm")}
-          onChange={(val) =>
-            handleChange("toTime")(val ? val.format("HH:mm") : "")
-          }
-          slotProps={{
-            textField: {
-              fullWidth: true,
-              onKeyDown: blockTyping,
-              onPaste: blockTyping,
-              InputProps: { readOnly: true },
-            },
-          }}
-        />
-      </Box>
+      if (
+        formData.toTime &&
+        dayjs(formData.toTime, "HH:mm").isBefore(
+          dayjs(newFrom, "HH:mm")
+        )
+      ) {
+        handleChange("toTime")(null);
+      }
+    }}
+    slotProps={{
+      textField: {
+        fullWidth: true,
+        error: touched.fromTime && !formData.fromTime,
+        helperText:
+          touched.fromTime && !formData.fromTime ? "Required" : undefined,
+        InputProps: { readOnly: true },
+        onKeyDown: blockTyping,
+      },
+    }}
+  />
 
-      <FormControl fullWidth sx={{ mb: fieldSpacing }}>
+  <TimePicker
+    label="To"
+    required
+    ampm={false}
+    format="HH:mm"
+    value={
+      formData.toTime
+        ? baseDate
+            .hour(dayjs(formData.toTime, "HH:mm").hour())
+            .minute(dayjs(formData.toTime, "HH:mm").minute())
+        : null
+    }
+    minTime={
+      formData.fromTime
+        ? baseDate
+            .hour(dayjs(formData.fromTime, "HH:mm").hour())
+            .minute(dayjs(formData.fromTime, "HH:mm").minute())
+        : baseDate.hour(5)
+    }
+    maxTime={baseDate.hour(20)}
+    minutesStep={5}
+    onChange={(val) => {
+      markTouched("toTime");
+      handleChange("toTime")(val ? val.format("HH:mm") : null);
+    }}
+    slotProps={{
+      textField: {
+        fullWidth: true,
+        error: touched.toTime && !formData.toTime,
+        helperText:
+          touched.toTime && !formData.toTime ? "Required" : undefined,
+        InputProps: { readOnly: true },
+        onKeyDown: blockTyping,
+      },
+    }}
+  />
+</Box>
+
+
+      {/* Locations */}
+      <FormControl
+        fullWidth
+        required
+        error={touched.locations && formData.locations.length === 0}
+        sx={{ mb: fieldSpacing }}
+      >
         <InputLabel>Location (Select Multiple)</InputLabel>
         <Select
           multiple
           value={formData.locations}
-          onChange={(e) => handleChange("locations")(e.target.value)}
           label="Location (Select Multiple)"
+          onChange={(e) => {
+            markTouched("locations");
+            handleChange("locations")(e.target.value);
+          }}
           renderValue={(selected) => (
             <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
               {selected.map((value) => (
-                <Chip
-                  key={value}
-                  label={value}
-                  size="small"
-                  color="primary"
-                  variant="outlined"
-                />
+                <Chip key={value} label={value} size="small" />
               ))}
             </Box>
           )}
@@ -196,38 +253,64 @@ export default function BookingFormFields({
             </MenuItem>
           ))}
         </Select>
+        <FormHelperText>
+          {touched.locations && formData.locations.length === 0
+            ? "Select at least one location"
+            : "Only available locations will show for the date/time you have selected"}
+        </FormHelperText>
       </FormControl>
 
+      {/* Event Name */}
       <TextField
         label="Event Name"
+        required
         fullWidth
         multiline
         rows={isMobile ? 3 : 2}
         sx={{ mb: fieldSpacing }}
         value={formData.eventName}
         onChange={(e) => handleChange("eventName")(e.target.value)}
+        onBlur={() => markTouched("eventName")}
+        error={touched.eventName && !formData.eventName}
+        helperText={
+          touched.eventName && !formData.eventName
+            ? "Event name is required"
+            : undefined
+        }
       />
 
+      {/* People / Cars */}
       <Box sx={{ display: "flex", gap: 2, mb: isMobile ? 2 : 4 }}>
         <TextField
           label="People"
+          required
           fullWidth
-          inputMode="numeric"
-          pattern="[0-9]*"
           value={formData.expectedPeople}
           onChange={(e) =>
             handleChange("expectedPeople")(e.target.value.replace(/\D/g, ""))
           }
+          onBlur={() => markTouched("expectedPeople")}
+          error={touched.expectedPeople && !formData.expectedPeople}
+          helperText={
+            touched.expectedPeople && !formData.expectedPeople
+              ? "Required"
+              : undefined
+          }
         />
-
         <TextField
           label="Cars"
+          required
           fullWidth
-          inputMode="numeric"
-          pattern="[0-9]*"
           value={formData.expectedCars}
           onChange={(e) =>
             handleChange("expectedCars")(e.target.value.replace(/\D/g, ""))
+          }
+          onBlur={() => markTouched("expectedCars")}
+          error={touched.expectedCars && !formData.expectedCars}
+          helperText={
+            touched.expectedCars && !formData.expectedCars
+              ? "Required"
+              : undefined
           }
         />
       </Box>
