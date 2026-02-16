@@ -1,4 +1,3 @@
-// src/components/Navigation.jsx
 import React from "react";
 import {
   Box,
@@ -17,19 +16,20 @@ import {
 } from "@mui/material";
 import {
   Menu as MenuIcon,
-  AddBoxOutlined,
-  PendingActionsOutlined,
-  ListAltOutlined,
   ChevronLeft,
-  GroupOutlined,
+  CalendarMonth, // Added for the new view
+  AddCircleOutline,
+  History,
+  Dashboard,
+  People
 } from "@mui/icons-material";
 
-// ✅ UPDATED VIEWS: Added USER_MANAGER to match App.js logic
 export const VIEWS = {
   REQUEST_BOOKING: "REQUEST_BOOKING",
   ALL_BOOKINGS: "ALL_BOOKINGS",
   MY_BOOKINGS: "MY_BOOKINGS",
   USER_MANAGER: "USER_MANAGER",
+  BOOKINGS_CALENDAR: "BOOKINGS_CALENDAR", // ✅ New View Constant
 };
 
 export default function Navigation({
@@ -39,31 +39,37 @@ export default function Navigation({
   setCurrentView,
   isDrawerOpen,
   setIsDrawerOpen,
+  sx,
 }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
 
-  // --- NAVIGATION CONFIGURATION ---
   const navigationItems = [
     {
       name: "Request a Booking",
       view: VIEWS.REQUEST_BOOKING,
-      icon: <AddBoxOutlined color="primary" />,
+      icon: <AddCircleOutline />,
       requiredAuth: true,
     },
     {
       name: "My Bookings",
       view: VIEWS.MY_BOOKINGS,
-      icon: <ListAltOutlined color="primary" />,
+      icon: <History />,
       requiredAuth: true,
     },
-    // Only show Admin-specific tabs if the user is an admin
+    // ✅ Added the Calendar View button
+    {
+      name: "Schedule Calendar",
+      view: VIEWS.BOOKINGS_CALENDAR,
+      icon: <CalendarMonth />,
+      requiredAuth: true, // Everyone can see the schedule
+    },
     ...(user
       ? [
           {
             name: "All Bookings",
             view: VIEWS.ALL_BOOKINGS,
-            icon: <PendingActionsOutlined color="primary" />,
+            icon: <Dashboard />,
             requiredAuth: true,
           },
         ]
@@ -73,59 +79,40 @@ export default function Navigation({
           {
             name: "User Manager",
             view: VIEWS.USER_MANAGER,
-            icon: <GroupOutlined color="primary" />,
+            icon: <People />,
             requiredAuth: true,
             adminOnly: true,
           },
         ]
       : []),
   ];
+
   const isLoggedIn = Boolean(user);
-
-const visibleNavigationItems = navigationItems.filter((item) => {
-  if (item.requiredAuth && !isLoggedIn) return false;
-  if (item.adminOnly && !isAdmin) return false;
-  return true;
-});
-
+  const visibleNavigationItems = navigationItems.filter((item) => {
+    if (item.requiredAuth && !isLoggedIn) return false;
+    if (item.adminOnly && !isAdmin) return false;
+    return true;
+  });
 
   const handleNavigate = (view) => {
     setCurrentView(view);
     if (isMobile) setIsDrawerOpen(false);
   };
 
-  // --- DRAWER CONTENT (Mobile Only) ---
   const DrawerList = (
     <Box sx={{ width: 250 }} role="presentation">
-      <Box
-        sx={{
-          p: 2,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          bgcolor: "primary.main",
-          color: "white",
-        }}
-      >
-        <Typography variant="h6" sx={{ fontWeight: 600, color: "white" }}>
-          Menu
-        </Typography>
-        <IconButton
-          onClick={() => setIsDrawerOpen(false)}
-          sx={{ color: "white" }}
-        >
-          <ChevronLeft />
-        </IconButton>
+      <Box sx={{ p: 2, display: "flex", alignItems: "center", justifyContent: "space-between", bgcolor: "primary.main", color: "white" }}>
+        <Typography variant="h6" sx={{ fontWeight: 600, color: "white" }}>Menu</Typography>
+        <IconButton onClick={() => setIsDrawerOpen(false)} sx={{ color: "white" }}><ChevronLeft /></IconButton>
       </Box>
       <Divider />
       <List>
         {visibleNavigationItems.map((item) => (
           <ListItem key={item.name} disablePadding>
-            <ListItemButton
-              selected={currentView === item.view}
-              onClick={() => handleNavigate(item.view)}
-            >
-              <ListItemIcon>{item.icon}</ListItemIcon>
+            <ListItemButton selected={currentView === item.view} onClick={() => handleNavigate(item.view)}>
+              <ListItemIcon sx={{ color: currentView === item.view ? 'primary.main' : 'inherit' }}>
+                {item.icon}
+              </ListItemIcon>
               <ListItemText primary={item.name} />
             </ListItemButton>
           </ListItem>
@@ -136,52 +123,49 @@ const visibleNavigationItems = navigationItems.filter((item) => {
 
   return (
     <>
-      {/* Mobile Navigation */}
       {isMobile && (
         <IconButton
           edge="start"
-          color="inherit"
           onClick={() => setIsDrawerOpen(true)}
-          sx={{ mr: 1, color: "primary.main" }}
+          sx={{ mr: 1, color: "white", filter: "drop-shadow(0px 2px 4px rgba(0,0,0,0.5))" }}
         >
           <MenuIcon />
         </IconButton>
       )}
 
-      {/* Desktop Navigation */}
       {!isMobile && (
-        <Box sx={{ display: "flex", gap: 1, mr: 3 }}>
-          {visibleNavigationItems.map((item) => (
-            <Button
-              key={item.name}
-              variant={currentView === item.view ? "contained" : "text"}
-              color="primary"
-              onClick={() => handleNavigate(item.view)}
-              startIcon={item.icon}
-              sx={{
-                fontWeight: 600,
-                borderRadius: 2,
-                px: 2,
-                color: currentView === item.view ? "white" : "primary.dark",
-                "&:hover": {
-                  bgcolor:
-                    currentView === item.view
-                      ? "primary.dark"
-                      : "rgba(0, 121, 107, 0.08)",
-                },
-              }}
-            >
-              {item.name}
-            </Button>
-          ))}
+        <Box sx={{ display: "flex", gap: 1, mr: 3, ...sx }}>
+          {visibleNavigationItems.map((item) => {
+            const isActive = currentView === item.view;
+            return (
+              <Button
+                key={item.name}
+                variant={isActive ? "contained" : "text"}
+                onClick={() => handleNavigate(item.view)}
+                startIcon={item.icon}
+                sx={{
+                  fontWeight: 700,
+                  borderRadius: 8,
+                  px: 2,
+                  textShadow: isActive ? "none" : "0px 2px 4px rgba(0,0,0,0.8)",
+                  color: "white",
+                  bgcolor: isActive ? "primary.main" : "transparent",
+                  "&:hover": {
+                    bgcolor: isActive ? "primary.dark" : "rgba(255, 255, 255, 0.15)",
+                  },
+                  "& .MuiButton-startIcon": {
+                    color: "inherit"
+                  }
+                }}
+              >
+                {item.name}
+              </Button>
+            );
+          })}
         </Box>
       )}
 
-      <Drawer
-        anchor="left"
-        open={isDrawerOpen}
-        onClose={() => setIsDrawerOpen(false)}
-      >
+      <Drawer anchor="left" open={isDrawerOpen} onClose={() => setIsDrawerOpen(false)}>
         {DrawerList}
       </Drawer>
     </>

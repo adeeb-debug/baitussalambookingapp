@@ -154,13 +154,21 @@ export default function BookingForm({ user, bookings }) {
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
       <Box>
-        <Typography
-          variant="h5"
-          sx={{ fontWeight: 700, color: "primary.main", mb: 2 }}
-        >
-          📝 Request a Booking
-        </Typography>
-
+      <Typography
+        variant="h5"
+        sx={{
+          fontWeight: 700,
+          color: "primary.main",
+          mt: 3,
+          mb: 3,
+          borderBottom: "2px solid",
+          borderColor: "divider",
+          pb: 1,
+          fontSize: { xs: '1.25rem', sm: '1.5rem' }
+        }}
+      >
+        Request a Booking
+      </Typography>
         {status.error && (
           <Alert severity="error" sx={{ mb: 2 }}>
             {status.error}

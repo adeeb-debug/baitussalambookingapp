@@ -6,7 +6,6 @@ import {
   Alert,
   List,
   ListItem,
-  Grid,
   Chip,
   Divider,
   Container,
@@ -65,7 +64,7 @@ const calculateGroupStatus = (bookings) => {
   return "In Review"; 
 };
 
-export default function UserBookings({ user, bookings, loading }) {
+export default function MyBookings({ user, bookings, loading }) {
 
   const groupedUserBookings = useMemo(() => {
     if (!user || !bookings) return [];
@@ -126,7 +125,7 @@ export default function UserBookings({ user, bookings, loading }) {
           fontSize: { xs: '1.25rem', sm: '1.5rem' }
         }}
       >
-        Your Active Events
+        My Bookings
       </Typography>
 
       {loading ? (

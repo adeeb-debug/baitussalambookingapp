@@ -1,4 +1,4 @@
-// src/App.js - COMPLETE UPDATED CODE
+// src/App.js - FULL PAGE HERO & INTEGRATED NAV
 
 import { useState, useEffect } from "react";
 import {
@@ -7,89 +7,82 @@ import {
   Toolbar,
   Typography,
   Button,
-  Grid,
   CircularProgress,
-  Paper,
   useMediaQuery,
-  Alert,
   IconButton,
-  CardMedia
+  CardMedia,
 } from "@mui/material";
 import {
   LockOpenOutlined,
   LogoutOutlined,
   VerifiedUser,
+  AddBoxOutlined,
 } from "@mui/icons-material";
-import { onSnapshot, query, collection, orderBy } from "firebase/firestore";
+import {
+  onSnapshot,
+  query,
+  collection,
+  orderBy,
+  doc,
+  getDoc,
+} from "firebase/firestore";
 import { onAuthStateChanged, signInWithPopup, signOut } from "firebase/auth";
-import { createTheme, ThemeProvider, useTheme } from "@mui/material/styles";
+import { createTheme, ThemeProvider } from "@mui/material/styles";
 
-// ⭐ IMPORT ALL COMPONENTS & VIEWS ⭐
+// COMPONENTS
 import Navigation, { VIEWS } from "./components/Navigation";
 import SignInModal from "./components/SignInModal";
-import AdminPanel from "./components/AdminPanel"; // Pending Approval Panel
-import BookingForm from "./components/BookingForm"; // Assume this exists
-import UserBookings from "./components/UserBookings"; // Assume this exists
+import AllBookings from "./components/AllBookings";
+import BookingForm from "./components/BookingForm";
+import MyBookings from "./components/MyBookings";
 import UserManager from "./components/UserManager";
+import BookingsCalendar from "./components/BookingsCalendar";
 import {
   auth,
   provider as googleProvider,
   microsoftProvider,
   db,
 } from "./firebase/firebaseConfig";
-import { doc, getDoc } from "firebase/firestore";
 
-// --- Custom, Modern Theme (Keep) ---
 const modernTheme = createTheme({
   palette: {
-    primary: {
-      main: "#00796b", // Deep Teal
-    },
-    secondary: {
-      main: "#ff9800", // Orange Accent
-    },
-    background: {
-      default: "#ffffff",
-    },
+    primary: { main: "#00796b" },
+    secondary: { main: "#ff9800" },
+    background: { default: "#f5f5f5" },
   },
   typography: {
     fontFamily: ['"Roboto"', "sans-serif"].join(","),
-    h6: {
-      fontWeight: 600,
-    },
+    h6: { fontWeight: 700 },
   },
-  shape: {
-    borderRadius: 12,
-  },
+  shape: { borderRadius: 16 },
 });
 
 export default function App() {
   const [user, setUser] = useState(null);
   const [bookings, setBookings] = useState([]);
-  const [loading, setLoading] = useState(false);
-  // ✅ CRITICAL FIX: isSignInModalOpen and its setter must be correctly declared
+  const [loading, setLoading] = useState(true);
   const [isSignInModalOpen, setIsSignInModalOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
-
   const [currentView, setCurrentView] = useState(VIEWS.REQUEST_BOOKING);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  console.log("Calendar Component:", BookingsCalendar);
+  const isMobile = useMediaQuery(modernTheme.breakpoints.down("sm"));
+      const viewComponents = {
+      [VIEWS.ALL_BOOKINGS]: AllBookings,
+      [VIEWS.MY_BOOKINGS]: MyBookings,
+      [VIEWS.USER_MANAGER]: UserManager,
+      [VIEWS.REQUEST_BOOKING]: BookingForm,
+      [VIEWS.BOOKINGS_CALENDAR]: BookingsCalendar,
+    };
 
+  // Auth Listener
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
       if (u) {
         const userDocRef = doc(db, "users", u.email.toLowerCase());
         const userSnap = await getDoc(userDocRef);
-
-        if (userSnap.exists()) {
-          const data = userSnap.data();
-          setIsAdmin(data.isAdmin === true);
-        } else {
-          console.warn("No user document found for:", u.email.toLowerCase());
-          setIsAdmin(false);
-        }
+        setIsAdmin(userSnap.exists() && userSnap.data().isAdmin === true);
         setUser(u);
       } else {
         setUser(null);
@@ -100,356 +93,307 @@ export default function App() {
     return () => unsub();
   }, []);
 
-  // ⭐ UTILITY FUNCTION: Extracts the first name ⭐
-  const getFirstName = (user) => {
-    if (!user) return "";
-
-    if (user.displayName) {
-      return user.displayName.split(" ")[0];
-    }
-
-    if (user.email) {
-      const emailPart = user.email.split("@")[0];
-
-      const cleanedName = emailPart
-        .replace(/[._-]/g, " ")
-        .split(" ")
-        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(" ");
-
-      return cleanedName.split(" ")[0];
-    }
-
-    return "Guest";
-  };
-
-  // Set initial view based on login state
+  // Firestore Listener
   useEffect(() => {
-    if (!user && currentView !== VIEWS.REQUEST_BOOKING) {
-      setCurrentView(VIEWS.REQUEST_BOOKING);
-    }
-  }, [user, currentView]);
-
-  // Authentication Listener (Keep)
-  useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => {
-      setUser(u);
+    const q = query(collection(db, "bookings"), orderBy("date", "desc"));
+    const unsub = onSnapshot(q, (snapshot) => {
+      setBookings(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
     });
     return () => unsub();
   }, []);
 
-  // Firestore Booking Listener (Keep)
-  useEffect(() => {
-    setLoading(true);
-    const q = query(
-      collection(db, "bookings"),
-      orderBy("date", "desc"),
-      orderBy("fromTime", "desc")
-    );
-    
-    const unsub = onSnapshot(
-      q,
-      (snapshot) => {
-        const fetchedBookings = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-        setBookings(fetchedBookings);
-        setLoading(false);
-      },
-      (error) => {
-        console.error("Error fetching bookings:", error);
-        setLoading(false);
-      }
-    );
-    return () => unsub();
-  }, []);
-
-  // Login Handler
   const login = async (providerName) => {
-    let selectedProvider;
-
-    if (providerName === "google") {
-      selectedProvider = googleProvider;
-    } else if (providerName === "microsoft") {
-      selectedProvider = microsoftProvider;
-    } else {
-      console.error("Unknown login provider:", providerName);
-      alert(`Login provider ${providerName} is not configured in App.js.`);
-      return;
-    }
-
-    // This line now works because setIsSignInModalOpen is defined above
+    const provider =
+      providerName === "google" ? googleProvider : microsoftProvider;
     setIsSignInModalOpen(false);
-
     try {
-      await signInWithPopup(auth, selectedProvider);
+      await signInWithPopup(auth, provider);
     } catch (err) {
-      console.error("Firebase Login Error:", err);
-      // Provide better user feedback for failed login
-      const errorMessage = err.message || "An unknown error occurred.";
-      alert(`Login with ${providerName} failed: ` + errorMessage);
+      alert("Login failed: " + err.message);
     }
   };
 
-  const logout = async () => {
-    signOut(auth);
-  };
+  const getFirstName = (user) =>
+    user?.displayName?.split(" ")[0] || user?.email?.split("@")[0] || "User";
 
-  // --- MAIN CONTENT RENDER LOGIC (UPDATED ROUTING) ---
   const renderContent = () => {
-    if (loading) {
+    if (loading)
       return (
         <Box sx={{ display: "flex", justifyContent: "center", p: 4 }}>
-          <CircularProgress color="primary" />
+          <CircularProgress />
         </Box>
       );
-    }
 
-    const isViewAllowed = user || currentView === VIEWS.REQUEST_BOOKING;
-
-    if (!isViewAllowed) {
-      return (
-        <Box sx={{ px: 2 }}>
-          <Alert severity="warning">Please sign in to access this feature.</Alert>
-        </Box>
-      );
-    }
-
-    let ComponentToRender;
-    const isBookingView = currentView === VIEWS.REQUEST_BOOKING;
-
-    switch (currentView) {
-      case VIEWS.ALL_BOOKINGS:
-        ComponentToRender = AdminPanel; // Renders the AdminPanel (now focused on Pending)
-        break;
-      case VIEWS.MY_BOOKINGS:
-        ComponentToRender = UserBookings;
-        break;
-      case VIEWS.USER_MANAGER:
-        ComponentToRender = UserManager;
-        break;
-      case VIEWS.REQUEST_BOOKING:
-      default:
-        ComponentToRender = BookingForm;
-        break;
-    }
-
-    // Define column size for the main content area
-    const mainContentColumns = isBookingView
-      ? isMobile
-        ? 12
-        : 7 // Booking Form uses 7 columns on desktop (to leave 5 for summaries)
-      : 12; // Other views (AdminPanel, AllBookingsPanel, UserBookings) use full width
-
-    return (
-      /* ✅ Wrapped in Box with overflowX hidden and used margin 0 on Grid to fix mobile bleed */
-      <Box sx={{ width: "100%", overflowX: "hidden" }}>
-        <Grid
-          container
-          spacing={isMobile ? 0 : 4} // Removed spacing on mobile to prevent negative margin overflow
-          alignItems="stretch"
-          justifyContent="center"
-          sx={{ width: "100%", margin: 0 }} 
-        >
-          {/* --- 1. Main Component (BookingForm / AdminPanel / UserBookings / AllBookingsPanel) --- */}
-          <Grid item xs={12} md={mainContentColumns} sx={{ p: isMobile ? 0 : 2 }}>
-            <Paper
-              elevation={isMobile ? 0 : 8}
-              sx={{
-                width: "100%",
-                p: isMobile ? 2 : 4,
-                borderRadius: isMobile ? 0 : 3, // Square edges look cleaner on mobile if it's bleeding
-                minHeight: "400px",
-                boxSizing: "border-box"
-              }}
-            >
-              <ComponentToRender
-                user={user}
-                isAdmin={isAdmin}
-                bookings={bookings}
-                loading={loading}
-              />
-            </Paper>
-          </Grid>
-        </Grid>
-      </Box>
-    );
-  };
-  // ---------------------------------
-
+if (!user && currentView === VIEWS.REQUEST_BOOKING) {
   return (
-  <ThemeProvider theme={modernTheme}>
     <Box
       sx={{
-        flexGrow: 1,
-        minHeight: "100vh",
-        maxWidth: "100vw",
-        overflowX: "hidden",
-        backgroundColor: "background.default",
         display: "flex",
-        flexDirection: "column",
+        flexDirection: isMobile ? "column" : "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        bgcolor: "#f0f7f6", // Ultra-light teal tint
+        p: isMobile ? 3 : 5,
+        borderRadius: isMobile ? 4 : "100px", // Pill shape on desktop
+        gap: 3,
+        border: "1px solid rgba(0, 121, 107, 0.1)",
+        boxShadow: "0px 10px 30px rgba(0,0,0,0.03)",
+        mt: 2
       }}
     >
-      {/* --- Header/AppBar --- */}
-      <AppBar
-        position="static"
-        color="transparent"
-        elevation={0}
-        sx={{
-          backgroundColor: "white",
-          color: "primary.main",
-          width: "100%",
-          borderBottom: "none",
-        }}
-      >
-        <Toolbar
+      <Box sx={{ 
+        display: "flex", 
+        alignItems: "center", 
+        gap: isMobile ? 2 : 4, 
+        flexDirection: isMobile ? "column" : "row", 
+        textAlign: isMobile ? "center" : "left" 
+      }}>
+        {/* Modern Icon Circle */}
+        <Box
           sx={{
-            flexDirection: "row",
+            width: 80,
+            height: 80,
+            borderRadius: "50%",
+            bgcolor: "primary.main",
+            display: "flex",
             alignItems: "center",
-            py: isMobile ? 1 : 0,
+            justifyContent: "center",
+            boxShadow: "0px 8px 20px rgba(0, 121, 107, 0.2)",
+            flexShrink: 0,
           }}
         >
-          {isMobile && (
-            <Navigation
-              user={user}
-              isAdmin={isAdmin}
-              currentView={currentView}
-              setCurrentView={setCurrentView}
-              isDrawerOpen={isDrawerOpen}
-              setIsDrawerOpen={setIsDrawerOpen}
-            />
-          )}
+          <AddBoxOutlined sx={{ fontSize: 40, color: "white" }} />
+        </Box>
 
-          <Typography
-            variant="h6"
-            component="div"
-            sx={{
-              flexGrow: 1,
-              color: "primary.dark",
-              display: "flex",
-              alignItems: "center",
-              gap: 1,
-              fontSize: isMobile ? "0.9rem" : "1.25rem",
-            }}
+        {/* Text Stack */}
+        <Box>
+          <Typography 
+            variant={isMobile ? "h6" : "h5"} 
+            sx={{ fontWeight: 800, color: "primary.dark", mb: 0.5 }}
           >
-            Baitus Salam Booking Portal
-            {isAdmin && (
-              <VerifiedUser
-                sx={{ color: "secondary.main", ml: 0.5 }}
-                fontSize="small"
-              />
-            )}
+            Ready to book at Baitus Salam Mosque?
           </Typography>
-
-          {!isMobile && (
-            <Navigation
-              user={user}
-              isAdmin={isAdmin}
-              currentView={currentView}
-              setCurrentView={setCurrentView}
-            />
-          )}
-
-          {user ? (
-            <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-              {!isMobile && (
-                <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                 <b>{getFirstName(user)}</b>
-                </Typography>
-              )}
-              <IconButton color="primary" onClick={logout}>
-                <LogoutOutlined />
-              </IconButton>
-            </Box>
-          ) : (
-            <Button
-              variant="contained"
-              color="primary"
-              onClick={() => setIsSignInModalOpen(true)}
-              startIcon={<LockOpenOutlined />}
-            >
-              Sign In
-            </Button>
-          )}
-        </Toolbar>
-      </AppBar>
-
-      {/* --- Main Content Container with Permanent Hero --- */}
-      <Box
-        sx={{
-          mt: isMobile ? 0 : 4,
-          mb: 4,
-          px: isMobile ? 0 : 3,
-          width: "100%",
-          maxWidth: "1100px", // Keeps layout tight on large screens
-          mx: "auto",
-          boxSizing: "border-box",
-        }}
-      >
-        <Paper
-          elevation={isMobile ? 0 : 8}
-          sx={{
-            borderRadius: isMobile ? 0 : 4,
-            overflow: "hidden",
-            backgroundColor: "white",
-          }}
-        >
-          {/* 1. Hero Image with Gradient Overlay */}
-          <Box sx={{ position: "relative", width: "100%",lineHeight: 0 }}>
-            <CardMedia
-              component="img"
-              image="/baitussalam.jpg" // 👈 Ensure this file is in your /public folder
-              alt="Baitus Salam"
-              sx={{
-                height: isMobile ? "180px" : "320px",
-                objectFit: "cover",
-                objectPosition: "center 30%",
-              }}
-            />
-            <Box
-              sx={{
-                position: "absolute",
-                bottom: -1,
-                left: 0,
-                width: "100%",
-                height: "60%",
-                background:
-                  "linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,1) 100%)",
-              }}
-            />
-          </Box>
-
-          {/* 2. Content Wrapper */}
-          <Box sx={{ px: isMobile ? 2 : 5, pb: 5, mt: -2, position: "relative", zIndex: 1 }}>
-            
-            {/* Dynamic Title based on view */}
-            <Typography
-              variant={isMobile ? "h5" : "h4"}
-              sx={{
-                fontWeight: "bold",
-                color: "primary.main",
-                mb: 4,
-              }}
-            >
-              {currentView === VIEWS.REQUEST_BOOKING}
-              {currentView === VIEWS.MY_BOOKINGS}
-              {currentView === VIEWS.ALL_BOOKINGS}
-              {currentView === VIEWS.USER_MANAGER}
-            </Typography>
-
-            {/* 3. Render the Component (Form / List) */}
-            {renderContent()}
-          </Box>
-        </Paper>
+          <Typography 
+            variant="body1" 
+            sx={{ color: "text.secondary", maxWidth: "500px", lineHeight: 1.6 }}
+          >
+            Please sign in with your google or microsoft account to access our booking form and to keep a record of your bookings. 
+          </Typography>
+        </Box>
       </Box>
 
-      <SignInModal
-        isOpen={isSignInModalOpen}
-        onClose={() => setIsSignInModalOpen(false)}
-        onLogin={login}
-      />
+      {/* Modern Pill Button */}
+      <Button
+        variant="contained"
+        color="primary"
+        onClick={() => setIsSignInModalOpen(true)}
+        startIcon={<LockOpenOutlined />}
+        sx={{
+          borderRadius: "50px",
+          px: 5,
+          py: 1.8,
+          fontWeight: 700,
+          fontSize: "0.95rem",
+          whiteSpace: "nowrap",
+          boxShadow: "0px 6px 20px rgba(0, 121, 107, 0.3)",
+          transition: "all 0.3s ease",
+          "&:hover": {
+            bgcolor: "primary.dark",
+            transform: "translateY(-2px)",
+            boxShadow: "0px 8px 25px rgba(0, 121, 107, 0.4)",
+          },
+        }}
+      >
+        SIGN IN NOW
+      </Button>
     </Box>
-  </ThemeProvider>
-);
+  );
+}
+
+
+    const ComponentToRender = viewComponents[currentView] || BookingForm;
+    return (
+      <ComponentToRender
+        user={user}
+        isAdmin={isAdmin}
+        bookings={bookings}
+        loading={loading}
+      />
+    );
+  };
+
+  return (
+    <ThemeProvider theme={modernTheme}>
+      <Box
+        sx={{
+          minHeight: "100vh",
+          bgcolor: "background.default",
+          overflowX: "hidden",
+        }}
+      >
+        {/* --- HERO SECTION WITH INTEGRATED NAV --- */}
+        <Box
+          sx={{
+            position: "relative",
+            width: "100%",
+            height: isMobile ? "280px" : "400px",
+          }}
+        >
+          <CardMedia
+            component="img"
+            image="/baitussalam.jpg"
+            sx={{
+              height: "100%",
+              width: "100%",
+              objectFit: "cover",
+              objectPosition: "center 30%",
+            }}
+          />
+
+          {/* Top Gradient for Nav Legibility */}
+          <Box
+            sx={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "100%",
+              height: "40%",
+              background:
+                "linear-gradient(to bottom, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0) 100%)",
+              zIndex: 1,
+            }}
+          />
+
+          {/* Bottom Gradient for Transition */}
+          <Box
+            sx={{
+              position: "absolute",
+              bottom: 0,
+              left: 0,
+              width: "100%",
+              height: "150px",
+              background:
+                "linear-gradient(to top, rgba(245,245,245,1) 0%, rgba(245,245,245,0) 100%)",
+              zIndex: 1,
+            }}
+          />
+
+          {/* Navigation Bar */}
+          <AppBar
+            position="absolute"
+            color="transparent"
+            elevation={0}
+            sx={{ zIndex: 10 }}
+          >
+            <Toolbar sx={{ px: isMobile ? 2 : 5 }}>
+              {isMobile && (
+                <Navigation
+                  user={user}
+                  isAdmin={isAdmin}
+                  currentView={currentView}
+                  setCurrentView={setCurrentView}
+                  isDrawerOpen={isDrawerOpen}
+                  setIsDrawerOpen={setIsDrawerOpen}
+                />
+              )}
+
+              <Typography
+                variant="h6"
+                sx={{
+                  flexGrow: 1,
+                  color: "white",
+                  textShadow: "0px 2px 4px rgba(0,0,0,0.5)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 1,
+                }}
+              >
+                Baitus Salam Booking Portal{" "}
+                {isAdmin && (
+                  <VerifiedUser
+                    sx={{ color: "secondary.main" }}
+                    fontSize="small"
+                  />
+                )}
+              </Typography>
+
+              {!isMobile && (
+                <Navigation
+                  user={user}
+                  isAdmin={isAdmin}
+                  currentView={currentView}
+                  setCurrentView={setCurrentView}
+                  sx={{ color: "white" }}
+                />
+              )}
+
+              {user ? (
+                <Box
+                  sx={{ display: "flex", alignItems: "center", gap: 1, ml: 2 }}
+                >
+                  {!isMobile && (
+                    <Typography
+                      variant="body2"
+                      sx={{ color: "white", fontWeight: "bold" }}
+                    >
+                      {getFirstName(user)}
+                    </Typography>
+                  )}
+                  <IconButton
+                    onClick={() => signOut(auth)}
+                    sx={{ color: "white", bgcolor: "rgba(255,255,255,0.1)" }}
+                  >
+                    <LogoutOutlined />
+                  </IconButton>
+                </Box>
+              ) : (
+                <Button
+                  variant="contained"
+                  color="primary"
+                  onClick={() => setIsSignInModalOpen(true)}
+                  startIcon={<LockOpenOutlined />}
+                >
+                  Sign In
+                </Button>
+              )}
+            </Toolbar>
+          </AppBar>
+        </Box>
+
+        {/* --- MAIN CONTENT AREA --- */}
+        <Box
+          sx={{
+            px: isMobile ? 2 : 4,
+            pb: 8,
+            mt: isMobile ? -4 : -8,
+            position: "relative",
+            zIndex: 5,
+          }}
+        >
+          <Box sx={{ maxWidth: "1100px", mx: "auto" }}>
+              {/* Correctly Rendered Dynamic Title */}
+              {user && (
+                <Typography
+                  variant={isMobile ? "h5" : "h4"}
+                  sx={{ fontWeight: "bold", color: "primary.main", mb: 4 }}
+                >
+                  {currentView === VIEWS.REQUEST_BOOKING}
+                  {currentView === VIEWS.MY_BOOKINGS}
+                  {currentView === VIEWS.ALL_BOOKINGS}
+                  {currentView === VIEWS.USER_MANAGER}
+                  {currentView === VIEWS.BOOKINGS_CALENDAR}
+                </Typography>
+              )}
+              {renderContent()}
+          </Box>
+        </Box>
+
+        <SignInModal
+          isOpen={isSignInModalOpen}
+          onClose={() => setIsSignInModalOpen(false)}
+          onLogin={login}
+        />
+      </Box>
+    </ThemeProvider>
+  );
 }
