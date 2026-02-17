@@ -1,8 +1,30 @@
 import React, { useState, useMemo } from "react";
 import {
-  Box, Typography, Paper, Alert, CircularProgress, FormControl,
-  InputLabel, Select, MenuItem, Grid, TableContainer, Table,
-  TableHead, TableBody, TableRow, TableCell, TextField, InputAdornment, Button, Stack
+  Box,
+  Typography,
+  Paper,
+  Alert,
+  CircularProgress,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Grid,
+  TableContainer,
+  Table,
+  TableHead,
+  TableBody,
+  TableRow,
+  TableCell,
+  TextField,
+  InputAdornment,
+  Button,
+  Stack,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+
 } from "@mui/material";
 import { FilterList, Search, RestartAlt } from "@mui/icons-material";
 import { doc, updateDoc, writeBatch } from "firebase/firestore";
@@ -10,7 +32,7 @@ import { db } from "../firebase/firebaseConfig";
 
 import { STATUSES } from "../utils/statuses";
 import { groupBookings } from "../utils/groupBookings";
-import { sendUserConfirmation } from "../utils/bookingService"; 
+import { sendUserConfirmation } from "../utils/bookingService";
 import PendingGroupRow from "./PendingGroupRow";
 
 // Helper to convert "26-01-2026" to a JS Date Object
@@ -27,9 +49,40 @@ export default function AllBookings({ isAdmin, bookings, loading }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+const [groupToDelete, setGroupToDelete] = useState(null);
+
+// This function just opens the UI
+const confirmDelete = (group) => {
+  setGroupToDelete(group);
+  setDeleteDialogOpen(true);
+};
+
+// This function does the actual work
+const handleExecuteDelete = async () => {
+  if (!groupToDelete) return;
+  
+  setDeleteDialogOpen(false); // Close dialog immediately
+  setIndividualActionLoadingId(groupToDelete.groupId);
+
+  try {
+    const batch = writeBatch(db);
+    groupToDelete.bookings.forEach((booking) => {
+      const docRef = doc(db, "bookings", booking.id);
+      batch.delete(docRef);
+    });
+    await batch.commit();
+  } catch (error) {
+    console.error("Delete failed:", error);
+  } finally {
+    setIndividualActionLoadingId(null);
+    setGroupToDelete(null);
+  }
+};
 
   // --- LOADING STATES ---
-  const [individualActionLoadingId, setIndividualActionLoadingId] = useState(null);
+  const [individualActionLoadingId, setIndividualActionLoadingId] =
+    useState(null);
   const [groupActionLoadingId, setGroupActionLoadingId] = useState(null);
 
   // --- HELPERS ---
@@ -50,13 +103,14 @@ export default function AllBookings({ isAdmin, bookings, loading }) {
   const filteredAndGroupedBookings = useMemo(() => {
     let result = bookings.filter((b) => {
       // 1. Status Filter
-      const matchesStatus = filterStatus === STATUSES.ALL || b.status === filterStatus;
+      const matchesStatus =
+        filterStatus === STATUSES.ALL || b.status === filterStatus;
       if (filterStatus === STATUSES.PENDING && b.userNotified) return false;
       if (!matchesStatus) return false;
 
       // 2. Search Filter (Case Insensitive)
       const search = searchQuery.toLowerCase();
-      const matchesSearch = 
+      const matchesSearch =
         b.eventName?.toLowerCase().includes(search) ||
         b.requestedByName?.toLowerCase().includes(search) ||
         b.requestedByEmail?.toLowerCase().includes(search);
@@ -64,7 +118,7 @@ export default function AllBookings({ isAdmin, bookings, loading }) {
 
       // 3. Date Range Filter (Handling DD-MM-YYYY)
       const bookingDateObj = parseFirebaseDate(b.date);
-      
+
       if (bookingDateObj) {
         if (startDate) {
           const start = new Date(startDate);
@@ -86,7 +140,10 @@ export default function AllBookings({ isAdmin, bookings, loading }) {
 
   // --- EMAIL ACTION ---
   const handleSendEmail = async (group) => {
-    if (!window.confirm(`Send final decision email to ${group.requestedByEmail}?`)) return;
+    if (
+      !window.confirm(`Send final decision email to ${group.requestedByEmail}?`)
+    )
+      return;
     setGroupActionLoadingId(group.groupId);
     try {
       await sendUserConfirmation(db, {
@@ -102,12 +159,17 @@ export default function AllBookings({ isAdmin, bookings, loading }) {
       setGroupActionLoadingId(null);
     }
   };
-
+  
   // --- GROUP ACTION ---
   const handleGroupAction = async (group, action) => {
-    const pendingBookings = group.bookings.filter((b) => b.status === "Pending");
+    const pendingBookings = group.bookings.filter(
+      (b) => b.status === "Pending",
+    );
     if (pendingBookings.length === 0) return;
-    if (!window.confirm(`Change ${pendingBookings.length} bookings to ${action}?`)) return;
+    if (
+      !window.confirm(`Change ${pendingBookings.length} bookings to ${action}?`)
+    )
+      return;
 
     setGroupActionLoadingId(group.groupId);
     try {
@@ -140,24 +202,53 @@ export default function AllBookings({ isAdmin, bookings, loading }) {
     }
   };
 
-  if (loading) return (
-    <Box sx={{ display: "flex", justifyContent: "center", p: 10 }}><CircularProgress /></Box>
-  );
+  if (loading)
+    return (
+      <Box sx={{ display: "flex", justifyContent: "center", p: 10 }}>
+        <CircularProgress />
+      </Box>
+    );
 
   return (
     <Box sx={{ pb: 5 }}>
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
-        <Typography variant="h4" sx={{ fontWeight: 800, display: "flex", alignItems: "center", letterSpacing: '-0.5px' }}>
+      <Stack
+        direction="row"
+        justifyContent="space-between"
+        alignItems="center"
+        sx={{ mb: 3 }}
+      >
+        <Typography
+          variant="h4"
+          sx={{
+            fontWeight: 800,
+            display: "flex",
+            alignItems: "center",
+            letterSpacing: "-0.5px",
+          }}
+        >
           <FilterList sx={{ mr: 1.5, color: "primary.main" }} />
           Admin Queue
-          <Typography component="span" variant="h6" sx={{ ml: 2, color: "text.secondary", fontWeight: 400 }}>
+          <Typography
+            component="span"
+            variant="h6"
+            sx={{ ml: 2, color: "text.secondary", fontWeight: 400 }}
+          >
             ({filteredAndGroupedBookings.length} Events)
           </Typography>
         </Typography>
       </Stack>
 
       {/* FILTER PANEL */}
-      <Paper elevation={0} sx={{ p: 2.5, mb: 3, borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
+      <Paper
+        elevation={0}
+        sx={{
+          p: 2.5,
+          mb: 3,
+          borderRadius: 3,
+          border: "1px solid",
+          borderColor: "divider",
+        }}
+      >
         <Grid container spacing={2}>
           <Grid item xs={12} md={4}>
             <TextField
@@ -168,7 +259,9 @@ export default function AllBookings({ isAdmin, bookings, loading }) {
               onChange={(e) => setSearchQuery(e.target.value)}
               InputProps={{
                 startAdornment: (
-                  <InputAdornment position="start"><Search fontSize="small" /></InputAdornment>
+                  <InputAdornment position="start">
+                    <Search fontSize="small" />
+                  </InputAdornment>
                 ),
               }}
             />
@@ -176,47 +269,75 @@ export default function AllBookings({ isAdmin, bookings, loading }) {
           <Grid item xs={6} md={2}>
             <FormControl fullWidth size="small">
               <InputLabel>Status</InputLabel>
-              <Select value={filterStatus} label="Status" onChange={(e) => setFilterStatus(e.target.value)}>
-                {Object.values(STATUSES).map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
+              <Select
+                value={filterStatus}
+                label="Status"
+                onChange={(e) => setFilterStatus(e.target.value)}
+              >
+                {Object.values(STATUSES).map((s) => (
+                  <MenuItem key={s} value={s}>
+                    {s}
+                  </MenuItem>
+                ))}
               </Select>
             </FormControl>
           </Grid>
           <Grid item xs={6} md={2}>
             <FormControl fullWidth size="small">
               <InputLabel>Location</InputLabel>
-              <Select value={filterLocation} label="Location" onChange={(e) => setFilterLocation(e.target.value)}>
-                {uniqueLocations.map((loc) => <MenuItem key={loc} value={loc}>{loc}</MenuItem>)}
+              <Select
+                value={filterLocation}
+                label="Location"
+                onChange={(e) => setFilterLocation(e.target.value)}
+              >
+                {uniqueLocations.map((loc) => (
+                  <MenuItem key={loc} value={loc}>
+                    {loc}
+                  </MenuItem>
+                ))}
               </Select>
             </FormControl>
           </Grid>
           <Grid item xs={6} md={2}>
             <TextField
-              fullWidth size="small" type="date" label="From"
-              value={startDate} onChange={(e) => setStartDate(e.target.value)}
+              fullWidth
+              size="small"
+              type="date"
+              label="From"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
               InputLabelProps={{ shrink: true }}
             />
           </Grid>
           <Grid item xs={6} md={2}>
             <TextField
-              fullWidth size="small" type="date" label="To"
-              value={endDate} onChange={(e) => setEndDate(e.target.value)}
+              fullWidth
+              size="small"
+              type="date"
+              label="To"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
               InputLabelProps={{ shrink: true }}
             />
           </Grid>
-                  <Button 
-          startIcon={<RestartAlt />} 
-          onClick={resetFilters} 
-          variant="outlined" 
-          size="small"
-          sx={{ borderRadius: '8px' }}
-        >
-          Clear Filters
-        </Button>
+          <Button
+            startIcon={<RestartAlt />}
+            onClick={resetFilters}
+            variant="outlined"
+            size="small"
+            sx={{ borderRadius: "8px" }}
+          >
+            Clear Filters
+          </Button>
         </Grid>
       </Paper>
 
       {/* DATA TABLE */}
-      <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 3 }}>
+      <TableContainer
+        component={Paper}
+        elevation={0}
+        sx={{ border: "1px solid", borderColor: "divider", borderRadius: 3 }}
+      >
         <Table size="small">
           <TableHead sx={{ bgcolor: "grey.50" }}>
             <TableRow>
@@ -225,16 +346,28 @@ export default function AllBookings({ isAdmin, bookings, loading }) {
               <TableCell sx={{ fontWeight: 700 }}>Date / Time</TableCell>
               <TableCell sx={{ fontWeight: 700 }}>Organiser</TableCell>
               <TableCell sx={{ fontWeight: 700 }}>Phone</TableCell>
-              <TableCell align="center" sx={{ fontWeight: 700 }}>Details</TableCell>
-              <TableCell align="center" sx={{ fontWeight: 700 }}>Status</TableCell>
-              {isAdmin && <TableCell align="right" sx={{ fontWeight: 700 }}>Actions</TableCell>}
+              <TableCell align="center" sx={{ fontWeight: 700 }}>
+                Details
+              </TableCell>
+              <TableCell align="center" sx={{ fontWeight: 700 }}>
+                Status
+              </TableCell>
+              {isAdmin && (
+                <TableCell align="center" sx={{ fontWeight: 700 }}>
+                  Actions
+                </TableCell>
+              )}
             </TableRow>
           </TableHead>
           <TableBody>
             {filteredAndGroupedBookings.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={8} align="center" sx={{ py: 8 }}>
-                  <Alert severity="info" variant="outlined" sx={{ display: 'inline-flex' }}>
+                  <Alert
+                    severity="info"
+                    variant="outlined"
+                    sx={{ display: "inline-flex" }}
+                  >
                     No bookings found matching these criteria.
                   </Alert>
                 </TableCell>
@@ -246,6 +379,7 @@ export default function AllBookings({ isAdmin, bookings, loading }) {
                   group={group}
                   handleGroupAction={handleGroupAction}
                   handleIndividualAction={handleIndividualAction}
+                  handleDeleteBooking={confirmDelete}
                   handleSendEmail={handleSendEmail}
                   individualActionLoadingId={individualActionLoadingId}
                   groupActionLoadingId={groupActionLoadingId}
@@ -256,6 +390,37 @@ export default function AllBookings({ isAdmin, bookings, loading }) {
           </TableBody>
         </Table>
       </TableContainer>
+      <Dialog
+  open={deleteDialogOpen}
+  onClose={() => setDeleteDialogOpen(false)}
+  aria-labelledby="delete-dialog-title"
+>
+  <DialogTitle id="delete-dialog-title" sx={{ fontWeight: 700, color: 'error.main' }}>
+    Confirm Deletion
+  </DialogTitle>
+  <DialogContent>
+    <Typography>
+      Are you sure you want to delete the booking for <strong>{groupToDelete?.eventName}</strong>?
+    </Typography>
+    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+      This will remove all {groupToDelete?.bookings.length} location records associated with this event. This action cannot be undone.
+    </Typography>
+  </DialogContent>
+  <DialogActions sx={{ p: 2 }}>
+    <Button onClick={() => setDeleteDialogOpen(false)} color="inherit">
+      Cancel
+    </Button>
+    <Button 
+      onClick={handleExecuteDelete} 
+      variant="contained" 
+      color="error"
+      autoFocus
+    >
+      Delete Everything
+    </Button>
+  </DialogActions>
+</Dialog>
     </Box>
+    
   );
 }

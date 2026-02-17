@@ -9,6 +9,9 @@ import {
   Collapse,
   Divider,
   List,
+    Stack,
+  Tooltip,
+  CircularProgress,
 } from "@mui/material";
 import {
   ExpandMore,
@@ -22,6 +25,7 @@ import {
   Phone,
   Send, // Added for the email button
   MarkEmailRead, // Added for the notified state
+  DeleteOutline,
 } from "@mui/icons-material";
 import { useTheme } from "@mui/material/styles";
 import IndividualBookingListItem from "./IndividualBookingListItem";
@@ -31,6 +35,7 @@ export default function PendingGroupRow({
   handleGroupAction,
   handleIndividualAction,
   handleSendEmail, // New prop from AdminPanel
+  handleDeleteBooking,
   individualActionLoadingId,
   groupActionLoadingId,
   isAdmin,
@@ -101,51 +106,66 @@ export default function PendingGroupRow({
         </TableCell>
 {isAdmin && (
         <TableCell>
-          {/* CASE 1: Still have pending items - Show Mass Actions */}
-          {pendingCount > 0 ? (
-            <Box sx={{ display: "flex", gap: 1 }}>
-              
-              <Button
-                size="small"
-                color="success"
-                variant="contained"
-                onClick={() => handleGroupAction(group, "Approved")}
-                disabled={isGroupLoading}
-              >
-                <CheckCircleOutline fontSize="small" />
-              </Button>
-              <Button
-                size="small"
-                color="error"
-                variant="contained"
-                onClick={() => handleGroupAction(group, "Rejected")}
-                disabled={isGroupLoading}
-              >
-                <CancelOutlined fontSize="small" />
-              </Button>
-            </Box>
-          ) : isProcessComplete && !isAlreadyNotified ? (
-            /* CASE 2: Process finished but email NOT sent - Show Notify Button */
-            <Button
-              size="small"
-              color="info"
-              variant="contained"
-              startIcon={<Send />}
-              onClick={() => handleSendEmail(group)}
-              disabled={isGroupLoading}
-              sx={{ whiteSpace: 'nowrap' }}
-            >
-              {isGroupLoading ? "Sending..." : "Notify User"}
-            </Button>
+    <Stack direction="row" spacing={1} alignItems="center">
+      {/* --- EXISTING LOGIC: PENDING ACTIONS OR NOTIFY --- */}
+      {pendingCount > 0 ? (
+        <Box sx={{ display: "flex", gap: 1 }}>
+          <Button
+            size="small"
+            color="success"
+            variant="contained"
+            onClick={() => handleGroupAction(group, "Approved")}
+            disabled={isGroupLoading}
+          >
+            <CheckCircleOutline fontSize="small" />
+          </Button>
+          <Button
+            size="small"
+            color="error"
+            variant="contained"
+            onClick={() => handleGroupAction(group, "Rejected")}
+            disabled={isGroupLoading}
+          >
+            <CancelOutlined fontSize="small" />
+          </Button>
+        </Box>
+      ) : isProcessComplete && !isAlreadyNotified ? (
+        <Button
+          size="small"
+          color="info"
+          variant="contained"
+          startIcon={<Send />}
+          onClick={() => handleSendEmail(group)}
+          disabled={isGroupLoading}
+          sx={{ whiteSpace: 'nowrap' }}
+        >
+          {isGroupLoading ? "Sending..." : "Notify"}
+        </Button>
+      ) : (
+        <Box sx={{ display: 'flex', alignItems: 'center', color: 'success.main', gap: 0.5 }}>
+          <MarkEmailRead fontSize="small" />
+          <Typography variant="caption" fontWeight={700}>Notified</Typography>
+        </Box>
+      )}
+
+      {/* --- NEW: DELETE BUTTON (Always visible for Admin) --- */}
+      <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
+      
+      <Tooltip title="Delete Entire Booking">
+        <IconButton
+          size="small"
+          color="error"
+          onClick={() => handleDeleteBooking(group)}
+          disabled={individualActionLoadingId === group}
+        >
+          {individualActionLoadingId === group.groupId ? ( 
+            <CircularProgress size={20} color="inherit" />
           ) : (
-            /* CASE 3: Process finished AND email sent - Show Completion State */
-            <Box sx={{ display: 'flex', alignItems: 'center', color: 'success.main', gap: 0.5 }}>
-                <MarkEmailRead fontSize="small" />
-                <Typography variant="caption" fontWeight={700}>
-                  Notified
-                </Typography>
-            </Box>
+            <DeleteOutline fontSize="small" />
           )}
+        </IconButton>
+      </Tooltip>
+    </Stack>
         </TableCell>
 )}
       </TableRow>

@@ -30,6 +30,7 @@ export const submitBookingBatch = async (db, user, formData, locations) => {
     const newDocRef = doc(db, "bookings", customId);
     batch.set(newDocRef, {
       ...formData,
+      id: customId,
       location: locationName,
       status: "Pending",
       userNotified: false, // Track if decision email has been sent
