@@ -23,9 +23,7 @@ export const submitBookingBatch = async (db, user, formData, locations) => {
   const groupId = uuidv4();
 
   for (const locationName of locations) {
-    const sortableDate = dayjs(formData.date, "DD-MM-YYYY").format(
-      "YYYY-MM-DD",
-    );
+    const sortableDate = dayjs(formData.date).format("YYYY-MM-DD");
     const customId = `${sortableDate}_${formData.eventName.replace(/\s+/g, "")}_${locationName.replace(/\s+/g, "")}`;
     const newDocRef = doc(db, "bookings", customId);
     batch.set(newDocRef, {
@@ -67,13 +65,14 @@ export const generateBookingId = async (db) => {
   return bookingId;
 };
 
-
-
 //----------------------------------------------------------------------------
 //SEND Email to All Admins when a booking request is made
 //----------------------------------------------------------------------------
 export const sendAdminNotification = async (db, formData, bookingId) => {
   try {
+
+        const [year, month, day] = formData.date.split('-');
+  const displayDate = `${day}-${month}-${year}`;
     // Get all users who are admins
     const adminsQuery = query(
       collection(db, "users"),
@@ -130,7 +129,7 @@ export const sendAdminNotification = async (db, formData, bookingId) => {
       </tr>
       <tr>
         <td style="padding: 8px; font-weight: bold;">Date:</td>
-        <td style="padding: 8px;">${formData.date}</td>
+        <td style="padding: 8px;">${displayDate}</td>
       </tr>
       <tr style="background-color: #f9f9f9;">
         <td style="padding: 8px; font-weight: bold;">Time:</td>
@@ -160,12 +159,12 @@ export const sendAdminNotification = async (db, formData, bookingId) => {
     </p>
 
     <!-- CTA Button -->
-    <div style="text-align: center; margin-top: 25px;">
-      <a href="https://booking-baitussalam.web.app/" 
-         style="background-color: #00796b; color: white; text-decoration: none; padding: 12px 25px; border-radius: 5px; display: inline-block; font-weight: bold;">
-        Review Booking
-      </a>
-    </div>
+<div style="text-align: center; margin-top: 25px;">
+  <a href="https://booking-baitussalam.web.app/all-bookings?id=${bookingId}" 
+     style="background-color: #00796b; color: white; text-decoration: none; padding: 12px 25px; border-radius: 5px; display: inline-block; font-weight: bold;">
+    Review Booking
+  </a>
+</div>
 
     <p style="margin-top: 20px; font-size: 0.85rem; color: #777;">
       This is an automated notification. Please do not reply directly to this email.
@@ -180,8 +179,6 @@ export const sendAdminNotification = async (db, formData, bookingId) => {
     await Promise.all(mailPromises);
   } catch (error) {}
 };
-
-
 
 //----------------------------------------------------------------------------
 //SEND Update to User (initiated by Admin click) upon booking decision made
@@ -247,10 +244,6 @@ export const sendUserConfirmation = async (db, group) => {
   }
 };
 
-
-
-
-
 //----------------------------------------------------------------------------
 //SEND Acknowledgement to User upon booking request
 //----------------------------------------------------------------------------
@@ -262,6 +255,8 @@ export const sendUserAcknowledgement = async (
   bookingId,
 ) => {
   try {
+    const [year, month, day] = formData.date.split('-');
+  const displayDate = `${day}-${month}-${year}`;
     await addDoc(collection(db, "mail"), {
       to: userEmail,
       message: {
@@ -299,7 +294,7 @@ export const sendUserAcknowledgement = async (
       </tr>
       <tr>
         <td style="padding: 8px; font-weight: bold;">Date:</td>
-        <td style="padding: 8px;">${formData.date}</td>
+        <td style="padding: 8px;">${displayDate}</td>
       </tr>
       <tr style="background-color: #f9f9f9;">
         <td style="padding: 8px; font-weight: bold;">Time:</td>

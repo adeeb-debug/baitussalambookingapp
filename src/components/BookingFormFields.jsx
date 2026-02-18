@@ -117,13 +117,13 @@ export default function BookingFormFields({
       <DatePicker
         label="Date"
         format="DD-MM-YYYY"
-        value={formData.date ? dayjs(formData.date, "DD-MM-YYYY") : null}
+        value={formData.date ? dayjs(formData.date) : null}
         minDate={minDate}
         maxDate={maxDate}
         disablePast
         onChange={(val) => {
           markTouched("date");
-          handleChange("date")(val ? val.format("DD-MM-YYYY") : "");
+          handleChange("date")(val ? val.format("YYYY-MM-DD") : "");
         }}
         slotProps={{
           textField: {

@@ -1,6 +1,13 @@
-// src/App.js - FULL PAGE HERO & INTEGRATED NAV
-
+// src/App.js
 import { useState, useEffect } from "react";
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Navigate,
+  useNavigate,
+  useLocation,
+} from "react-router-dom";
 import {
   Box,
   AppBar,
@@ -30,7 +37,7 @@ import { onAuthStateChanged, signInWithPopup, signOut } from "firebase/auth";
 import { createTheme, ThemeProvider } from "@mui/material/styles";
 
 // COMPONENTS
-import Navigation, { VIEWS } from "./components/Navigation";
+import Navigation from "./components/Navigation";
 import SignInModal from "./components/SignInModal";
 import AllBookings from "./components/AllBookings";
 import BookingForm from "./components/BookingForm";
@@ -44,6 +51,7 @@ import {
   db,
 } from "./firebase/firebaseConfig";
 
+// --- THEME DEFINITION ---
 const modernTheme = createTheme({
   palette: {
     primary: { main: "#00796b" },
@@ -57,24 +65,29 @@ const modernTheme = createTheme({
   shape: { borderRadius: 16 },
 });
 
+// --- MAIN WRAPPER (Fixes the useNavigate error) ---
 export default function App() {
+  return (
+    <BrowserRouter>
+      <ThemeProvider theme={modernTheme}>
+        <AppContent />
+      </ThemeProvider>
+    </BrowserRouter>
+  );
+}
+
+// --- ACTUAL APP LOGIC ---
+function AppContent() {
   const [user, setUser] = useState(null);
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isSignInModalOpen, setIsSignInModalOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [currentView, setCurrentView] = useState(VIEWS.REQUEST_BOOKING);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
-  console.log("Calendar Component:", BookingsCalendar);
+  const navigate = useNavigate();
+  const location = useLocation();
   const isMobile = useMediaQuery(modernTheme.breakpoints.down("sm"));
-      const viewComponents = {
-      [VIEWS.ALL_BOOKINGS]: AllBookings,
-      [VIEWS.MY_BOOKINGS]: MyBookings,
-      [VIEWS.USER_MANAGER]: UserManager,
-      [VIEWS.REQUEST_BOOKING]: BookingForm,
-      [VIEWS.BOOKINGS_CALENDAR]: BookingsCalendar,
-    };
 
   // Auth Listener
   useEffect(() => {
@@ -95,12 +108,31 @@ export default function App() {
 
   // Firestore Listener
   useEffect(() => {
+    if (!user) {
+      setBookings([]);
+      return;
+    }
+
     const q = query(collection(db, "bookings"), orderBy("date", "desc"));
-    const unsub = onSnapshot(q, (snapshot) => {
-      setBookings(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
-    });
+
+    const unsub = onSnapshot(
+      q,
+      (snapshot) => {
+        setBookings(
+          snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
+        );
+      },
+      (error) => {
+        if (error.code === "permission-denied") {
+          console.log("Waiting for authentication permissions...");
+        } else {
+          console.error("Firestore error:", error);
+        }
+      },
+    );
+
     return () => unsub();
-  }, []);
+  }, [user]);
 
   const login = async (providerName) => {
     const provider =
@@ -116,284 +148,341 @@ export default function App() {
   const getFirstName = (user) =>
     user?.displayName?.split(" ")[0] || user?.email?.split("@")[0] || "User";
 
-  const renderContent = () => {
-    if (loading)
-      return (
-        <Box sx={{ display: "flex", justifyContent: "center", p: 4 }}>
-          <CircularProgress />
-        </Box>
-      );
-
-if (!user && currentView === VIEWS.REQUEST_BOOKING) {
-  return (
-    <Box
-      sx={{
-        display: "flex",
-        flexDirection: isMobile ? "column" : "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-        bgcolor: "#f0f7f6", // Ultra-light teal tint
-        p: isMobile ? 3 : 5,
-        borderRadius: isMobile ? 4 : "100px", // Pill shape on desktop
-        gap: 3,
-        border: "1px solid rgba(0, 121, 107, 0.1)",
-        boxShadow: "0px 10px 30px rgba(0,0,0,0.03)",
-        mt: 2
-      }}
-    >
-      <Box sx={{ 
-        display: "flex", 
-        alignItems: "center", 
-        gap: isMobile ? 2 : 4, 
-        flexDirection: isMobile ? "column" : "row", 
-        textAlign: isMobile ? "center" : "left" 
-      }}>
-        {/* Modern Icon Circle */}
-        <Box
-          sx={{
-            width: 80,
-            height: 80,
-            borderRadius: "50%",
-            bgcolor: "primary.main",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            boxShadow: "0px 8px 20px rgba(0, 121, 107, 0.2)",
-            flexShrink: 0,
-          }}
-        >
-          <AddBoxOutlined sx={{ fontSize: 40, color: "white" }} />
-        </Box>
-
-        {/* Text Stack */}
-        <Box>
-          <Typography 
-            variant={isMobile ? "h6" : "h5"} 
-            sx={{ fontWeight: 800, color: "primary.dark", mb: 0.5 }}
-          >
-            Ready to book at Baitus Salam Mosque?
-          </Typography>
-          <Typography 
-            variant="body1" 
-            sx={{ color: "text.secondary", maxWidth: "500px", lineHeight: 1.6 }}
-          >
-            Please sign in with your google or microsoft account to access our booking form and to keep a record of your bookings. 
-          </Typography>
-        </Box>
-      </Box>
-
-      {/* Modern Pill Button */}
-      <Button
-        variant="contained"
-        color="primary"
-        onClick={() => setIsSignInModalOpen(true)}
-        startIcon={<LockOpenOutlined />}
-        sx={{
-          borderRadius: "50px",
-          px: 5,
-          py: 1.8,
-          fontWeight: 700,
-          fontSize: "0.95rem",
-          whiteSpace: "nowrap",
-          boxShadow: "0px 6px 20px rgba(0, 121, 107, 0.3)",
-          transition: "all 0.3s ease",
-          "&:hover": {
-            bgcolor: "primary.dark",
-            transform: "translateY(-2px)",
-            boxShadow: "0px 8px 25px rgba(0, 121, 107, 0.4)",
-          },
-        }}
-      >
-        SIGN IN NOW
-      </Button>
-    </Box>
-  );
-}
-
-
-    const ComponentToRender = viewComponents[currentView] || BookingForm;
-    return (
-      <ComponentToRender
-        user={user}
-        isAdmin={isAdmin}
-        bookings={bookings}
-        loading={loading}
-      />
-    );
+  const getPageTitle = () => {
+    switch (location.pathname) {
+      case "/":
+        return "Request a Booking";
+      case "/my-bookings":
+        return "My Bookings";
+      case "/calendar":
+        return "Bookings Calendar";
+      default:
+        return "";
+    }
   };
 
   return (
-    <ThemeProvider theme={modernTheme}>
+    <Box
+      sx={{
+        minHeight: "100vh",
+        bgcolor: "background.default",
+        overflowX: "hidden",
+      }}
+    >
+      {/* --- HERO SECTION --- */}
       <Box
         sx={{
-          minHeight: "100vh",
-          bgcolor: "background.default",
-          overflowX: "hidden",
+          position: "relative",
+          width: "100%",
+          height: isMobile ? "280px" : "400px",
+          marginBottom: "-1px", // Fixes sub-pixel gap line
+          overflow: "visible", 
         }}
       >
-        {/* --- HERO SECTION WITH INTEGRATED NAV --- */}
+        {/* Subtle Bottom Transition Overlay */}
         <Box
           sx={{
-            position: "relative",
-            width: "100%",
-            height: isMobile ? "280px" : "400px",
+            position: "absolute",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: "80px",
+            background: "linear-gradient(to bottom, transparent, #f5f5f5)",
+            pointerEvents: "none",
+            zIndex: 2,
           }}
-        >
-          <CardMedia
-            component="img"
-            image="/baitussalam.jpg"
-            sx={{
-              height: "100%",
-              width: "100%",
-              objectFit: "cover",
-              objectPosition: "center 30%",
-            }}
-          />
-
-          {/* Top Gradient for Nav Legibility */}
-          <Box
-            sx={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              width: "100%",
-              height: "40%",
-              background:
-                "linear-gradient(to bottom, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0) 100%)",
-              zIndex: 1,
-            }}
-          />
-
-          {/* Bottom Gradient for Transition */}
-          <Box
-            sx={{
-              position: "absolute",
-              bottom: 0,
-              left: 0,
-              width: "100%",
-              height: "150px",
-              background:
-                "linear-gradient(to top, rgba(245,245,245,1) 0%, rgba(245,245,245,0) 100%)",
-              zIndex: 1,
-            }}
-          />
-
-          {/* Navigation Bar */}
-          <AppBar
-            position="absolute"
-            color="transparent"
-            elevation={0}
-            sx={{ zIndex: 10 }}
-          >
-            <Toolbar sx={{ px: isMobile ? 2 : 5 }}>
-              {isMobile && (
-                <Navigation
-                  user={user}
-                  isAdmin={isAdmin}
-                  currentView={currentView}
-                  setCurrentView={setCurrentView}
-                  isDrawerOpen={isDrawerOpen}
-                  setIsDrawerOpen={setIsDrawerOpen}
-                />
-              )}
-
-              <Typography
-                variant="h6"
-                sx={{
-                  flexGrow: 1,
-                  color: "white",
-                  textShadow: "0px 2px 4px rgba(0,0,0,0.5)",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 1,
-                }}
-              >
-                Baitus Salam Booking Portal{" "}
-                {isAdmin && (
-                  <VerifiedUser
-                    sx={{ color: "secondary.main" }}
-                    fontSize="small"
-                  />
-                )}
-              </Typography>
-
-              {!isMobile && (
-                <Navigation
-                  user={user}
-                  isAdmin={isAdmin}
-                  currentView={currentView}
-                  setCurrentView={setCurrentView}
-                  sx={{ color: "white" }}
-                />
-              )}
-
-              {user ? (
-                <Box
-                  sx={{ display: "flex", alignItems: "center", gap: 1, ml: 2 }}
-                >
-                  {!isMobile && (
-                    <Typography
-                      variant="body2"
-                      sx={{ color: "white", fontWeight: "bold" }}
-                    >
-                      {getFirstName(user)}
-                    </Typography>
-                  )}
-                  <IconButton
-                    onClick={() => signOut(auth)}
-                    sx={{ color: "white", bgcolor: "rgba(255,255,255,0.1)" }}
-                  >
-                    <LogoutOutlined />
-                  </IconButton>
-                </Box>
-              ) : (
-                <Button
-                  variant="contained"
-                  color="primary"
-                  onClick={() => setIsSignInModalOpen(true)}
-                  startIcon={<LockOpenOutlined />}
-                >
-                  Sign In
-                </Button>
-              )}
-            </Toolbar>
-          </AppBar>
-        </Box>
-
-        {/* --- MAIN CONTENT AREA --- */}
-        <Box
-          sx={{
-            px: isMobile ? 2 : 4,
-            pb: 8,
-            mt: isMobile ? -4 : -8,
-            position: "relative",
-            zIndex: 5,
-          }}
-        >
-          <Box sx={{ maxWidth: "1100px", mx: "auto" }}>
-              {/* Correctly Rendered Dynamic Title */}
-              {user && (
-                <Typography
-                  variant={isMobile ? "h5" : "h4"}
-                  sx={{ fontWeight: "bold", color: "primary.main", mb: 4 }}
-                >
-                  {currentView === VIEWS.REQUEST_BOOKING}
-                  {currentView === VIEWS.MY_BOOKINGS}
-                  {currentView === VIEWS.ALL_BOOKINGS}
-                  {currentView === VIEWS.USER_MANAGER}
-                  {currentView === VIEWS.BOOKINGS_CALENDAR}
-                </Typography>
-              )}
-              {renderContent()}
-          </Box>
-        </Box>
-
-        <SignInModal
-          isOpen={isSignInModalOpen}
-          onClose={() => setIsSignInModalOpen(false)}
-          onLogin={login}
         />
+        
+        <CardMedia
+          component="img"
+          image="/baitussalam.jpg"
+          sx={{
+            height: "100%",
+            width: "100%",
+            objectFit: "cover",
+            objectPosition: "center 30%",
+            display: "block", // Crucial fix for the bottom "line"
+          }}
+        />
+
+        {/* Top Gradient */}
+        <Box
+          sx={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "40%",
+            background:
+              "linear-gradient(to bottom, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0) 100%)",
+            zIndex: 1,
+          }}
+        />
+
+        {/* Bottom Gradient (Matches Page BG) */}
+        <Box
+          sx={{
+            position: "absolute",
+            bottom: 0,
+            left: 0,
+            width: "100%",
+            height: "150px",
+            background:
+              "linear-gradient(to top, rgba(245,245,245,1) 0%, rgba(245,245,245,0) 100%)",
+            zIndex: 1,
+          }}
+        />
+
+        {/* Navigation Bar */}
+        <AppBar
+          position="absolute"
+          color="transparent"
+          elevation={0}
+          sx={{ zIndex: 10 }}
+        >
+          <Toolbar sx={{ px: isMobile ? 2 : 5 }}>
+            {isMobile && (
+              <Navigation
+                user={user}
+                isAdmin={isAdmin}
+                onNavigate={(path) => navigate(path)}
+                isDrawerOpen={isDrawerOpen}
+                setIsDrawerOpen={setIsDrawerOpen}
+              />
+            )}
+
+            <Typography
+              variant="h6"
+              sx={{
+                flexGrow: 1,
+                color: "white",
+                textShadow: "0px 2px 4px rgba(0,0,0,0.5)",
+                display: "flex",
+                alignItems: "center",
+                gap: 1,
+              }}
+            >
+              Baitus Salam Booking Portal{" "}
+              {isAdmin && (
+                <VerifiedUser
+                  sx={{ color: "secondary.main" }}
+                  fontSize="small"
+                />
+              )}
+            </Typography>
+
+            {!isMobile && (
+              <Navigation
+                user={user}
+                isAdmin={isAdmin}
+                onNavigate={(path) => navigate(path)}
+                sx={{ color: "white" }}
+              />
+            )}
+
+            {user ? (
+              <Box
+                sx={{ display: "flex", alignItems: "center", gap: 1, ml: 2 }}
+              >
+                {!isMobile && (
+                  <Typography
+                    variant="body2"
+                    sx={{ color: "white", fontWeight: "bold" }}
+                  >
+                    {getFirstName(user)}
+                  </Typography>
+                )}
+                <IconButton
+                  onClick={() => signOut(auth)}
+                  sx={{
+                    color: "white",
+                    bgcolor: "rgba(255,255,255,0.1)",
+                    "&:hover": { bgcolor: "rgba(255,255,255,0.2)" },
+                  }}
+                >
+                  <LogoutOutlined />
+                </IconButton>
+              </Box>
+            ) : null}
+          </Toolbar>
+        </AppBar>
       </Box>
-    </ThemeProvider>
+
+      {/* --- MAIN CONTENT AREA --- */}
+      <Box
+        sx={{
+          px: isMobile ? 1.5 : 4,
+          pb: 8,
+          mt: isMobile ? -5 : -8, // Increased mobile overlap to hide the line
+          position: "relative",
+          zIndex: 15, // Higher than hero gradients
+        }}
+      >
+        <Box sx={{ maxWidth: "1100px", mx: "auto" }}>
+          {/* Dynamic Page Title */}
+          {user && (
+            <Typography
+              variant={isMobile ? "h5" : "h4"}
+              sx={{ 
+                fontWeight: "bold", 
+                color: "primary.main", 
+                mb: 4,
+                textShadow: isMobile ? "0px 1px 2px rgba(255,255,255,0.8)" : "none" 
+              }}
+            >
+              {getPageTitle()}
+            </Typography>
+          )}
+
+          {loading ? (
+            <Box sx={{ display: "flex", justifyContent: "center", p: 4 }}>
+              <CircularProgress />
+            </Box>
+          ) : (
+            <Routes>
+              <Route
+                path="/"
+                element={
+                  user ? (
+                    <BookingForm
+                      user={user}
+                      isAdmin={isAdmin}
+                      bookings={bookings}
+                    />
+                  ) : (
+                    <Box
+                      sx={{
+                        display: "flex",
+                        flexDirection: isMobile ? "column" : "row",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        bgcolor: "white", // Changed to solid white for better blending
+                        p: isMobile ? 3 : 5,
+                        borderRadius: isMobile ? 4 : "100px",
+                        gap: 3,
+                        border: "1px solid rgba(0, 121, 107, 0.1)",
+                        boxShadow: "0px 10px 30px rgba(0,0,0,0.08)",
+                        mt: 2,
+                      }}
+                    >
+                      <Box
+                        sx={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: isMobile ? 2 : 4,
+                          flexDirection: isMobile ? "column" : "row",
+                          textAlign: isMobile ? "center" : "left",
+                        }}
+                      >
+                        <Box
+                          sx={{
+                            width: 80,
+                            height: 80,
+                            borderRadius: "50%",
+                            bgcolor: "primary.main",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            boxShadow: "0px 8px 20px rgba(0, 121, 107, 0.2)",
+                            flexShrink: 0,
+                          }}
+                        >
+                          <AddBoxOutlined
+                            sx={{ fontSize: 40, color: "white" }}
+                          />
+                        </Box>
+                        <Box>
+                          <Typography
+                            variant={isMobile ? "h6" : "h5"}
+                            sx={{
+                              fontWeight: 800,
+                              color: "primary.dark",
+                              mb: 0.5,
+                            }}
+                          >
+                            Ready to book at Baitus Salam Mosque?
+                          </Typography>
+                          <Typography
+                            variant="body1"
+                            sx={{
+                              color: "text.secondary",
+                              maxWidth: "500px",
+                              lineHeight: 1.6,
+                            }}
+                          >
+                            Please sign in with your google or microsoft account
+                            to access our booking form and to keep a record of
+                            your bookings.
+                          </Typography>
+                        </Box>
+                      </Box>
+                      <Button
+                        variant="contained"
+                        color="primary"
+                        onClick={() => setIsSignInModalOpen(true)}
+                        startIcon={<LockOpenOutlined />}
+                        sx={{
+                          borderRadius: "50px",
+                          px: 5,
+                          py: 1.8,
+                          fontWeight: 700,
+                          fontSize: "0.95rem",
+                          whiteSpace: "nowrap",
+                          boxShadow: "0px 6px 20px rgba(0, 121, 107, 0.3)",
+                          transition: "all 0.3s ease",
+                          "&:hover": {
+                            bgcolor: "primary.dark",
+                            transform: "translateY(-2px)",
+                            boxShadow: "0px 8px 25px rgba(0, 121, 107, 0.4)",
+                          },
+                        }}
+                      >
+                        SIGN IN NOW
+                      </Button>
+                    </Box>
+                  )
+                }
+              />
+
+              <Route
+                path="/calendar"
+                element={<BookingsCalendar bookings={bookings} />}
+              />
+              <Route
+                path="/my-bookings"
+                element={
+                  user ? (
+                    <MyBookings user={user} bookings={bookings} />
+                  ) : (
+                    <Navigate to="/" />
+                  )
+                }
+              />
+              <Route
+                path="/all-bookings"
+                element={
+                  isAdmin ? (
+                    <AllBookings bookings={bookings} />
+                  ) : (
+                    <Navigate to="/" />
+                  )
+                }
+              />
+              <Route
+                path="/user-manager"
+                element={isAdmin ? <UserManager /> : <Navigate to="/" />}
+              />
+              <Route path="*" element={<Navigate to="/" />} />
+            </Routes>
+          )}
+        </Box>
+      </Box>
+
+      <SignInModal
+        isOpen={isSignInModalOpen}
+        onClose={() => setIsSignInModalOpen(false)}
+        onLogin={login}
+      />
+    </Box>
   );
 }

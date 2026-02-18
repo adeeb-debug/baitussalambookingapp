@@ -1,4 +1,5 @@
 import React from "react";
+import { useLocation } from "react-router-dom";
 import {
   Box,
   Button,
@@ -17,59 +18,47 @@ import {
 import {
   Menu as MenuIcon,
   ChevronLeft,
-  CalendarMonth, // Added for the new view
+  CalendarMonth,
   AddCircleOutline,
   History,
   Dashboard,
-  People
+  People,
 } from "@mui/icons-material";
 
 export const VIEWS = {
-  REQUEST_BOOKING: "REQUEST_BOOKING",
-  ALL_BOOKINGS: "ALL_BOOKINGS",
-  MY_BOOKINGS: "MY_BOOKINGS",
-  USER_MANAGER: "USER_MANAGER",
-  BOOKINGS_CALENDAR: "BOOKINGS_CALENDAR", // ✅ New View Constant
+  REQUEST_BOOKING: "/",
+  ALL_BOOKINGS: "/all-bookings",
+  MY_BOOKINGS: "/my-bookings",
+  USER_MANAGER: "/user-manager",
+  BOOKINGS_CALENDAR: "/calendar",
 };
 
 export default function Navigation({
   user,
   isAdmin,
-  currentView,
-  setCurrentView,
+  onNavigate, // Prop from App.js
   isDrawerOpen,
   setIsDrawerOpen,
   sx,
 }) {
   const theme = useTheme();
+  const location = useLocation();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
 
+  // Navigation mapping updated to use URL paths
   const navigationItems = [
-    {
-      name: "Request a Booking",
-      view: VIEWS.REQUEST_BOOKING,
-      icon: <AddCircleOutline />,
-      requiredAuth: true,
-    },
-    {
-      name: "My Bookings",
-      view: VIEWS.MY_BOOKINGS,
-      icon: <History />,
-      requiredAuth: true,
-    },
-    // ✅ Added the Calendar View button
-    {
-      name: "Schedule Calendar",
-      view: VIEWS.BOOKINGS_CALENDAR,
-      icon: <CalendarMonth />,
-      requiredAuth: true, // Everyone can see the schedule
-    },
     ...(user
       ? [
           {
-            name: "All Bookings",
-            view: VIEWS.ALL_BOOKINGS,
-            icon: <Dashboard />,
+            name: "Request a Booking",
+            path: VIEWS.REQUEST_BOOKING,
+            icon: <AddCircleOutline />,
+            requiredAuth: true, // Everyone sees this (they get the sign-in banner if not logged in)
+          },
+          {
+            name: "My Bookings",
+            path: VIEWS.MY_BOOKINGS,
+            icon: <History />,
             requiredAuth: true,
           },
         ]
@@ -77,8 +66,22 @@ export default function Navigation({
     ...(isAdmin
       ? [
           {
+            name: "Schedule Calendar",
+            path: VIEWS.BOOKINGS_CALENDAR,
+            icon: <CalendarMonth />,
+            requiredAuth: true,
+            adminOnly: true,
+          },
+          {
+            name: "All Bookings",
+            path: VIEWS.ALL_BOOKINGS,
+            icon: <Dashboard />,
+            requiredAuth: true,
+            adminOnly: true,
+          },
+          {
             name: "User Manager",
-            view: VIEWS.USER_MANAGER,
+            path: VIEWS.USER_MANAGER,
             icon: <People />,
             requiredAuth: true,
             adminOnly: true,
@@ -94,23 +97,49 @@ export default function Navigation({
     return true;
   });
 
-  const handleNavigate = (view) => {
-    setCurrentView(view);
+  const handleNavigate = (path) => {
+    onNavigate(path);
     if (isMobile) setIsDrawerOpen(false);
   };
 
   const DrawerList = (
     <Box sx={{ width: 250 }} role="presentation">
-      <Box sx={{ p: 2, display: "flex", alignItems: "center", justifyContent: "space-between", bgcolor: "primary.main", color: "white" }}>
-        <Typography variant="h6" sx={{ fontWeight: 600, color: "white" }}>Menu</Typography>
-        <IconButton onClick={() => setIsDrawerOpen(false)} sx={{ color: "white" }}><ChevronLeft /></IconButton>
+      <Box
+        sx={{
+          p: 2,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          bgcolor: "primary.main",
+          color: "white",
+        }}
+      >
+        <Typography variant="h6" sx={{ fontWeight: 600, color: "white" }}>
+          Menu
+        </Typography>
+        <IconButton
+          onClick={() => setIsDrawerOpen(false)}
+          sx={{ color: "white" }}
+        >
+          <ChevronLeft />
+        </IconButton>
       </Box>
       <Divider />
       <List>
         {visibleNavigationItems.map((item) => (
           <ListItem key={item.name} disablePadding>
-            <ListItemButton selected={currentView === item.view} onClick={() => handleNavigate(item.view)}>
-              <ListItemIcon sx={{ color: currentView === item.view ? 'primary.main' : 'inherit' }}>
+            <ListItemButton
+              selected={location.pathname === item.path}
+              onClick={() => handleNavigate(item.path)}
+            >
+              <ListItemIcon
+                sx={{
+                  color:
+                    location.pathname === item.path
+                      ? "primary.main"
+                      : "inherit",
+                }}
+              >
                 {item.icon}
               </ListItemIcon>
               <ListItemText primary={item.name} />
@@ -127,7 +156,11 @@ export default function Navigation({
         <IconButton
           edge="start"
           onClick={() => setIsDrawerOpen(true)}
-          sx={{ mr: 1, color: "white", filter: "drop-shadow(0px 2px 4px rgba(0,0,0,0.5))" }}
+          sx={{
+            mr: 1,
+            color: "white",
+            filter: "drop-shadow(0px 2px 4px rgba(0,0,0,0.5))",
+          }}
         >
           <MenuIcon />
         </IconButton>
@@ -136,12 +169,12 @@ export default function Navigation({
       {!isMobile && (
         <Box sx={{ display: "flex", gap: 1, mr: 3, ...sx }}>
           {visibleNavigationItems.map((item) => {
-            const isActive = currentView === item.view;
+            const isActive = location.pathname === item.path;
             return (
               <Button
                 key={item.name}
                 variant={isActive ? "contained" : "text"}
-                onClick={() => handleNavigate(item.view)}
+                onClick={() => handleNavigate(item.path)}
                 startIcon={item.icon}
                 sx={{
                   fontWeight: 700,
@@ -151,11 +184,13 @@ export default function Navigation({
                   color: "white",
                   bgcolor: isActive ? "primary.main" : "transparent",
                   "&:hover": {
-                    bgcolor: isActive ? "primary.dark" : "rgba(255, 255, 255, 0.15)",
+                    bgcolor: isActive
+                      ? "primary.dark"
+                      : "rgba(255, 255, 255, 0.15)",
                   },
                   "& .MuiButton-startIcon": {
-                    color: "inherit"
-                  }
+                    color: "inherit",
+                  },
                 }}
               >
                 {item.name}
@@ -165,7 +200,11 @@ export default function Navigation({
         </Box>
       )}
 
-      <Drawer anchor="left" open={isDrawerOpen} onClose={() => setIsDrawerOpen(false)}>
+      <Drawer
+        anchor="left"
+        open={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+      >
         {DrawerList}
       </Drawer>
     </>

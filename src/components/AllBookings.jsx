@@ -1,4 +1,6 @@
-import React, { useState, useMemo } from "react";
+// src/components/AllBookings.js
+import React, { useState, useMemo,useEffect } from "react";
+import { useSearchParams } from "react-router-dom"; // Add this hook
 import {
   Box,
   Typography,
@@ -24,7 +26,6 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-
 } from "@mui/material";
 import { FilterList, Search, RestartAlt } from "@mui/icons-material";
 import { doc, updateDoc, writeBatch } from "firebase/firestore";
@@ -35,115 +36,122 @@ import { groupBookings } from "../utils/groupBookings";
 import { sendUserConfirmation } from "../utils/bookingService";
 import PendingGroupRow from "./PendingGroupRow";
 
-// Helper to convert "26-01-2026" to a JS Date Object
 const parseFirebaseDate = (dateStr) => {
   if (!dateStr || typeof dateStr !== "string") return null;
   const [day, month, year] = dateStr.split("-").map(Number);
   return new Date(year, month - 1, day);
 };
 
-export default function AllBookings({ isAdmin, bookings, loading }) {
-  // --- FILTER STATES ---
+
+
+export default function AllBookings({ isAdmin, bookings = [], loading }) {
+
+  const [searchParams, setSearchParams] = useSearchParams();
   const [filterStatus, setFilterStatus] = useState(STATUSES.ALL);
   const [filterLocation, setFilterLocation] = useState(STATUSES.ALL);
   const [searchQuery, setSearchQuery] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-const [groupToDelete, setGroupToDelete] = useState(null);
-
-// This function just opens the UI
-const confirmDelete = (group) => {
-  setGroupToDelete(group);
-  setDeleteDialogOpen(true);
-};
-
-// This function does the actual work
-const handleExecuteDelete = async () => {
-  if (!groupToDelete) return;
   
-  setDeleteDialogOpen(false); // Close dialog immediately
-  setIndividualActionLoadingId(groupToDelete.groupId);
-
-  try {
-    const batch = writeBatch(db);
-    groupToDelete.bookings.forEach((booking) => {
-      const docRef = doc(db, "bookings", booking.id);
-      batch.delete(docRef);
-    });
-    await batch.commit();
-  } catch (error) {
-    console.error("Delete failed:", error);
-  } finally {
-    setIndividualActionLoadingId(null);
-    setGroupToDelete(null);
-  }
-};
+  // --- DELETE DIALOG STATES ---
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [groupToDelete, setGroupToDelete] = useState(null);
 
   // --- LOADING STATES ---
-  const [individualActionLoadingId, setIndividualActionLoadingId] =
-    useState(null);
+  const [individualActionLoadingId, setIndividualActionLoadingId] = useState(null);
   const [groupActionLoadingId, setGroupActionLoadingId] = useState(null);
 
-  // --- HELPERS ---
+
+  // 2. Capture the ID from the URL on load
+  useEffect(() => {
+    const idFromUrl = searchParams.get("id");
+    if (idFromUrl) {
+      setSearchQuery(idFromUrl);
+      // Optional: Set status to ALL to make sure it's found even if not pending
+      setFilterStatus(STATUSES.ALL); 
+    }
+  }, [searchParams]);
+
+  
+
+  const confirmDelete = (group) => {
+    setGroupToDelete(group);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleExecuteDelete = async () => {
+    if (!groupToDelete) return;
+    
+    setDeleteDialogOpen(false);
+    setIndividualActionLoadingId(groupToDelete.groupId);
+
+    try {
+      const batch = writeBatch(db);
+      groupToDelete.bookings.forEach((booking) => {
+        const docRef = doc(db, "bookings", booking.id);
+        batch.delete(docRef);
+      });
+      await batch.commit();
+    } catch (error) {
+      console.error("Delete failed:", error);
+      alert("Delete failed. Check console.");
+    } finally {
+      setIndividualActionLoadingId(null);
+      setGroupToDelete(null);
+    }
+  };
+
   const resetFilters = () => {
     setFilterStatus(STATUSES.ALL);
     setFilterLocation(STATUSES.ALL);
     setSearchQuery("");
     setStartDate("");
     setEndDate("");
+    setSearchParams({});
   };
+
+  
 
   const uniqueLocations = useMemo(() => {
     const locations = new Set(bookings.map((b) => b.location).filter(Boolean));
     return [STATUSES.ALL, ...Array.from(locations).sort()];
   }, [bookings]);
 
-  // --- FILTER & GROUP LOGIC ---
   const filteredAndGroupedBookings = useMemo(() => {
     let result = bookings.filter((b) => {
-      // 1. Status Filter
-      const matchesStatus =
-        filterStatus === STATUSES.ALL || b.status === filterStatus;
+      const matchesStatus = filterStatus === STATUSES.ALL || b.status === filterStatus;
       if (filterStatus === STATUSES.PENDING && b.userNotified) return false;
       if (!matchesStatus) return false;
 
-      // 2. Search Filter (Case Insensitive)
       const search = searchQuery.toLowerCase();
       const matchesSearch =
+ b.bookingId.toLowerCase().includes(search) ||
         b.eventName?.toLowerCase().includes(search) ||
         b.requestedByName?.toLowerCase().includes(search) ||
         b.requestedByEmail?.toLowerCase().includes(search);
       if (!matchesSearch) return false;
 
-      // 3. Date Range Filter (Handling DD-MM-YYYY)
       const bookingDateObj = parseFirebaseDate(b.date);
-
       if (bookingDateObj) {
         if (startDate) {
           const start = new Date(startDate);
-          start.setHours(0, 0, 0, 0); // Start of day
+          start.setHours(0, 0, 0, 0);
           if (bookingDateObj < start) return false;
         }
         if (endDate) {
           const end = new Date(endDate);
-          end.setHours(23, 59, 59, 999); // End of day
+          end.setHours(23, 59, 59, 999);
           if (bookingDateObj > end) return false;
         }
       }
-
       return true;
     });
 
     return groupBookings(result, filterLocation);
   }, [bookings, filterStatus, filterLocation, searchQuery, startDate, endDate]);
 
-  // --- EMAIL ACTION ---
   const handleSendEmail = async (group) => {
-    if (
-      !window.confirm(`Send final decision email to ${group.requestedByEmail}?`)
-    )
-      return;
+    if (!window.confirm(`Send final decision email to ${group.requestedByEmail}?`)) return;
     setGroupActionLoadingId(group.groupId);
     try {
       await sendUserConfirmation(db, {
@@ -160,16 +168,10 @@ const handleExecuteDelete = async () => {
     }
   };
   
-  // --- GROUP ACTION ---
   const handleGroupAction = async (group, action) => {
-    const pendingBookings = group.bookings.filter(
-      (b) => b.status === "Pending",
-    );
+    const pendingBookings = group.bookings.filter((b) => b.status === "Pending");
     if (pendingBookings.length === 0) return;
-    if (
-      !window.confirm(`Change ${pendingBookings.length} bookings to ${action}?`)
-    )
-      return;
+    if (!window.confirm(`Change ${pendingBookings.length} bookings to ${action}?`)) return;
 
     setGroupActionLoadingId(group.groupId);
     try {
@@ -187,7 +189,6 @@ const handleExecuteDelete = async () => {
     }
   };
 
-  // --- INDIVIDUAL ACTION ---
   const handleIndividualAction = async (bookingId, action) => {
     if (!window.confirm(`Are you sure you want to ${action}?`)) return;
     setIndividualActionLoadingId(bookingId);
@@ -202,172 +203,88 @@ const handleExecuteDelete = async () => {
     }
   };
 
-  if (loading)
-    return (
-      <Box sx={{ display: "flex", justifyContent: "center", p: 10 }}>
-        <CircularProgress />
-      </Box>
-    );
+  if (loading) return (
+    <Box sx={{ display: "flex", justifyContent: "center", p: 10 }}>
+      <CircularProgress />
+    </Box>
+  );
+
 
   return (
     <Box sx={{ pb: 5 }}>
-      <Stack
-        direction="row"
-        justifyContent="space-between"
-        alignItems="center"
-        sx={{ mb: 3 }}
-      >
-        <Typography
-          variant="h4"
-          sx={{
-            fontWeight: 800,
-            display: "flex",
-            alignItems: "center",
-            letterSpacing: "-0.5px",
-          }}
-        >
+      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
+        <Typography variant="h4" sx={{ fontWeight: 800, display: "flex", alignItems: "center", letterSpacing: "-0.5px" }}>
           <FilterList sx={{ mr: 1.5, color: "primary.main" }} />
-          Admin Queue
-          <Typography
-            component="span"
-            variant="h6"
-            sx={{ ml: 2, color: "text.secondary", fontWeight: 400 }}
-          >
+          Bookings List
+          <Typography component="span" variant="h6" sx={{ ml: 2, color: "text.secondary", fontWeight: 400 }}>
             ({filteredAndGroupedBookings.length} Events)
           </Typography>
         </Typography>
       </Stack>
 
-      {/* FILTER PANEL */}
-      <Paper
-        elevation={0}
-        sx={{
-          p: 2.5,
-          mb: 3,
-          borderRadius: 3,
-          border: "1px solid",
-          borderColor: "divider",
-        }}
-      >
-        <Grid container spacing={2}>
-          <Grid item xs={12} md={4}>
+      <Paper elevation={0} sx={{ p: 2.5, mb: 3, borderRadius: 3, border: "1px solid", borderColor: "divider" }}>
+        <Grid container spacing={2} alignItems="center">
+          <Grid item xs={12} md={3}>
             <TextField
               fullWidth
               size="small"
-              placeholder="Search event, organiser, or email..."
+              placeholder="Search..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <Search fontSize="small" />
-                  </InputAdornment>
-                ),
-              }}
+              InputProps={{ startAdornment: (<InputAdornment position="start"><Search fontSize="small" /></InputAdornment>) }}
             />
           </Grid>
           <Grid item xs={6} md={2}>
             <FormControl fullWidth size="small">
               <InputLabel>Status</InputLabel>
-              <Select
-                value={filterStatus}
-                label="Status"
-                onChange={(e) => setFilterStatus(e.target.value)}
-              >
-                {Object.values(STATUSES).map((s) => (
-                  <MenuItem key={s} value={s}>
-                    {s}
-                  </MenuItem>
-                ))}
+              <Select value={filterStatus} label="Status" onChange={(e) => setFilterStatus(e.target.value)}>
+                {Object.values(STATUSES).map((s) => (<MenuItem key={s} value={s}>{s}</MenuItem>))}
               </Select>
             </FormControl>
           </Grid>
           <Grid item xs={6} md={2}>
             <FormControl fullWidth size="small">
               <InputLabel>Location</InputLabel>
-              <Select
-                value={filterLocation}
-                label="Location"
-                onChange={(e) => setFilterLocation(e.target.value)}
-              >
-                {uniqueLocations.map((loc) => (
-                  <MenuItem key={loc} value={loc}>
-                    {loc}
-                  </MenuItem>
-                ))}
+              <Select value={filterLocation} label="Location" onChange={(e) => setFilterLocation(e.target.value)}>
+                {uniqueLocations.map((loc) => (<MenuItem key={loc} value={loc}>{loc}</MenuItem>))}
               </Select>
             </FormControl>
           </Grid>
           <Grid item xs={6} md={2}>
-            <TextField
-              fullWidth
-              size="small"
-              type="date"
-              label="From"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              InputLabelProps={{ shrink: true }}
-            />
+            <TextField fullWidth size="small" type="date" label="From" value={startDate} onChange={(e) => setStartDate(e.target.value)} InputLabelProps={{ shrink: true }} />
           </Grid>
           <Grid item xs={6} md={2}>
-            <TextField
-              fullWidth
-              size="small"
-              type="date"
-              label="To"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              InputLabelProps={{ shrink: true }}
-            />
+            <TextField fullWidth size="small" type="date" label="To" value={endDate} onChange={(e) => setEndDate(e.target.value)} InputLabelProps={{ shrink: true }} />
           </Grid>
-          <Button
-            startIcon={<RestartAlt />}
-            onClick={resetFilters}
-            variant="outlined"
-            size="small"
-            sx={{ borderRadius: "8px" }}
-          >
-            Clear Filters
-          </Button>
+          <Grid item xs={12} md={1}>
+            <Button startIcon={<RestartAlt />} onClick={resetFilters} variant="outlined" size="small" fullWidth sx={{ borderRadius: "8px", height: "40px" }}>
+              Reset
+            </Button>
+          </Grid>
         </Grid>
       </Paper>
 
-      {/* DATA TABLE */}
-      <TableContainer
-        component={Paper}
-        elevation={0}
-        sx={{ border: "1px solid", borderColor: "divider", borderRadius: 3 }}
-      >
+      <TableContainer component={Paper} elevation={0} sx={{ border: "1px solid", borderColor: "divider", borderRadius: 3 }}>
         <Table size="small">
           <TableHead sx={{ bgcolor: "grey.50" }}>
             <TableRow>
               <TableCell />
+              <TableCell sx={{ fontWeight: 700 }}>Booking ID</TableCell>
               <TableCell sx={{ fontWeight: 700 }}>Event</TableCell>
               <TableCell sx={{ fontWeight: 700 }}>Date / Time</TableCell>
               <TableCell sx={{ fontWeight: 700 }}>Organiser</TableCell>
               <TableCell sx={{ fontWeight: 700 }}>Phone</TableCell>
-              <TableCell align="center" sx={{ fontWeight: 700 }}>
-                Details
-              </TableCell>
-              <TableCell align="center" sx={{ fontWeight: 700 }}>
-                Status
-              </TableCell>
-              {isAdmin && (
-                <TableCell align="center" sx={{ fontWeight: 700 }}>
-                  Actions
-                </TableCell>
-              )}
+              <TableCell align="center" sx={{ fontWeight: 700 }}>Details</TableCell>
+              <TableCell align="center" sx={{ fontWeight: 700 }}>Status</TableCell>
+              {/* Ensure this displays if isAdmin is true */}
+              <TableCell align="center" sx={{ fontWeight: 700 }}>Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {filteredAndGroupedBookings.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={8} align="center" sx={{ py: 8 }}>
-                  <Alert
-                    severity="info"
-                    variant="outlined"
-                    sx={{ display: "inline-flex" }}
-                  >
+                  <Alert severity="info" variant="outlined" sx={{ display: "inline-flex" }}>
                     No bookings found matching these criteria.
                   </Alert>
                 </TableCell>
@@ -383,44 +300,27 @@ const handleExecuteDelete = async () => {
                   handleSendEmail={handleSendEmail}
                   individualActionLoadingId={individualActionLoadingId}
                   groupActionLoadingId={groupActionLoadingId}
-                  isAdmin={isAdmin}
+                  isAdmin={true} // Hardcoded to true because only admins can access this route anyway
                 />
               ))
             )}
           </TableBody>
         </Table>
       </TableContainer>
-      <Dialog
-  open={deleteDialogOpen}
-  onClose={() => setDeleteDialogOpen(false)}
-  aria-labelledby="delete-dialog-title"
->
-  <DialogTitle id="delete-dialog-title" sx={{ fontWeight: 700, color: 'error.main' }}>
-    Confirm Deletion
-  </DialogTitle>
-  <DialogContent>
-    <Typography>
-      Are you sure you want to delete the booking for <strong>{groupToDelete?.eventName}</strong>?
-    </Typography>
-    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-      This will remove all {groupToDelete?.bookings.length} location records associated with this event. This action cannot be undone.
-    </Typography>
-  </DialogContent>
-  <DialogActions sx={{ p: 2 }}>
-    <Button onClick={() => setDeleteDialogOpen(false)} color="inherit">
-      Cancel
-    </Button>
-    <Button 
-      onClick={handleExecuteDelete} 
-      variant="contained" 
-      color="error"
-      autoFocus
-    >
-      Delete Everything
-    </Button>
-  </DialogActions>
-</Dialog>
+
+      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
+        <DialogTitle sx={{ fontWeight: 700, color: 'error.main' }}>Confirm Deletion</DialogTitle>
+        <DialogContent>
+          <Typography>Are you sure you want to delete <strong>{groupToDelete?.eventName}</strong>?</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            This will remove all {groupToDelete?.bookings.length} location records and cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setDeleteDialogOpen(false)} color="inherit">Cancel</Button>
+          <Button onClick={handleExecuteDelete} variant="contained" color="error">Delete Everything</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
-    
   );
 }

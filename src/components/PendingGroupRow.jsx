@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState } from "react";
 import {
   TableRow,
   TableCell,
@@ -16,13 +16,11 @@ import {
 import {
   ExpandMore,
   ChevronRight,
-  GroupOutlined,
   CheckCircleOutline,
   CancelOutlined,
   InfoOutlined,
   People,
   DirectionsCar,
-  Phone,
   Send, // Added for the email button
   MarkEmailRead, // Added for the notified state
   DeleteOutline,
@@ -43,12 +41,6 @@ export default function PendingGroupRow({
 }) {
   const theme = useTheme();
   const [expanded, setExpanded] = useState(false);
-
-  const formattedDate = useMemo(() => {
-    if (!group.date) return "N/A";
-    const [dd, mm, yyyy] = group.date.split("-");
-    return new Date(yyyy, mm - 1, dd).toLocaleDateString("en-GB");
-  }, [group.date]);
 
   // LOGIC: Check counts
   const pendingCount = group.bookings.filter((b) => b.status === "Pending").length;
@@ -73,9 +65,16 @@ export default function PendingGroupRow({
           </IconButton>
         </TableCell>
 
+                <TableCell>
+          <Box sx={{ display: "flex", gap: 1 }}>
+            <Typography fontWeight={600}>
+              {group.bookingId}
+            </Typography>
+          </Box>
+        </TableCell>
+
         <TableCell>
           <Box sx={{ display: "flex", gap: 1 }}>
-            <GroupOutlined />
             <Typography fontWeight={600}>
               {group.eventName || "Unnamed Event"}
             </Typography>
@@ -83,14 +82,14 @@ export default function PendingGroupRow({
         </TableCell>
 
         <TableCell>
-          <Typography fontWeight={700}>{formattedDate}</Typography>
+          <Typography fontWeight={700}>{group.date}</Typography>
           <Typography variant="caption">
             {group.fromTime} - {group.toTime}
           </Typography>
         </TableCell>
 
         <TableCell>
-          <Phone fontSize="small" /> {group.requestedByName || "N/A"}
+          {group.requestedByName || "N/A"}
         </TableCell>
 
         <TableCell>{group.phoneNumber || "N/A"}</TableCell>

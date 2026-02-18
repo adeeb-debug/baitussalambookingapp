@@ -112,21 +112,6 @@ export default function MyBookings({ user, bookings, loading }) {
 
   return (
     <Container maxWidth="lg" sx={{ pb: 4, px: { xs: 2, sm: 3 } }}>
-      <Typography
-        variant="h5"
-        sx={{
-          fontWeight: 700,
-          color: "primary.main",
-          mt: 3,
-          mb: 3,
-          borderBottom: "2px solid",
-          borderColor: "divider",
-          pb: 1,
-          fontSize: { xs: '1.25rem', sm: '1.5rem' }
-        }}
-      >
-        My Bookings
-      </Typography>
 
       {loading ? (
         <Box sx={{ display: "flex", justifyContent: "center", py: 5 }}>

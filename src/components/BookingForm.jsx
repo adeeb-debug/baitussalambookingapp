@@ -39,6 +39,8 @@ export default function BookingForm({ user, bookings }) {
     expectedCars: "",
   });
 
+  
+
   const [formData, setFormData] = useState(INITIAL_FORM_DATA(user));
   const [availableLocations, setAvailableLocations] = useState(LOCATIONS);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -62,30 +64,43 @@ export default function BookingForm({ user, bookings }) {
     );
   };
 
-  /** 📍 LOCATION AVAILABILITY */
-  useEffect(() => {
-    if (!formData.date || !formData.fromTime || !formData.toTime) return;
+/** 📍 LOCATION AVAILABILITY */
+useEffect(() => {
+  if (!formData.date || !formData.fromTime || !formData.toTime || !bookings) return;
 
-    const reqStart = dayjs(`2026-01-01T${formData.fromTime}`);
-    const reqEnd = dayjs(`2026-01-01T${formData.toTime}`);
+  const filtered = LOCATIONS.filter((loc) => {
+    // We want to find if ANY existing booking blocks this specific 'loc'
+    const isBlocked = bookings.some((b) => {
+      // 1. Match the Date
+      const isSameDay = dayjs(b.date).isSame(dayjs(formData.date), 'day');
+      if (!isSameDay) return false;
+      console.log(isSameDay)
 
-    const filtered = LOCATIONS.filter(
-      (loc) =>
-        !bookings.some((b) => {
-          if (b.location !== loc.name || b.date !== formData.date) return false;
-          if (b.status === "Cancelled" || b.status === "Rejected") return false;
+      // 2. Match the Location (Checking both singular and plural fields)
+      const locationMatch = 
+        b.location === loc.name || 
+        (Array.isArray(b.locations) && b.locations.includes(loc.name));
+      
+      if (!locationMatch) return false;
 
-          return overlaps(
-            reqStart.toDate(),
-            reqEnd.toDate(),
-            dayjs(`2026-01-01T${b.fromTime}`).toDate(),
-            dayjs(`2026-01-01T${b.toTime}`).toDate()
-          );
-        })
-    );
+      // 3. Match the Status
+      if (b.status === "Cancelled" || b.status === "Rejected") return false;
 
-    setAvailableLocations(filtered);
-  }, [formData.date, formData.fromTime, formData.toTime, bookings]);
+      // 4. Match the Time (Overlap)
+      const REFERENCE_DATE = "2026-01-01";
+      return overlaps(
+        dayjs(`${REFERENCE_DATE}T${formData.fromTime}`).toDate(),
+        dayjs(`${REFERENCE_DATE}T${formData.toTime}`).toDate(),
+        dayjs(`${REFERENCE_DATE}T${b.fromTime}`).toDate(),
+        dayjs(`${REFERENCE_DATE}T${b.toTime}`).toDate()
+      );
+    });
+
+    return !isBlocked; // Keep the location only if no booking blocks it
+  });
+
+  setAvailableLocations(filtered);
+}, [formData.date, formData.fromTime, formData.toTime, bookings]);
 
   /** 🚀 SUBMIT */
   const handleSend = async () => {
@@ -110,11 +125,16 @@ export default function BookingForm({ user, bookings }) {
 
     setIsSubmitting(true);
 
+    // Normalize the date to ISO format before sending to Firestore
+  const normalizedData = {
+    ...formData,
+    date: dayjs(formData.date).format("YYYY-MM-DD") 
+  };
     try {
       const bookingCreated = await submitBookingBatch(
         db,
         user,
-        formData,
+        normalizedData,
         formData.locations
       );
 
@@ -154,21 +174,6 @@ export default function BookingForm({ user, bookings }) {
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
       <Box>
-      <Typography
-        variant="h5"
-        sx={{
-          fontWeight: 700,
-          color: "primary.main",
-          mt: 3,
-          mb: 3,
-          borderBottom: "2px solid",
-          borderColor: "divider",
-          pb: 1,
-          fontSize: { xs: '1.25rem', sm: '1.5rem' }
-        }}
-      >
-        Request a Booking
-      </Typography>
         {status.error && (
           <Alert severity="error" sx={{ mb: 2 }}>
             {status.error}
