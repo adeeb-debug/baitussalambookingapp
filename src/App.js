@@ -84,6 +84,7 @@ function AppContent() {
   const [isSignInModalOpen, setIsSignInModalOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isAuthorized, setIsAuthorized] = useState(false);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -95,11 +96,21 @@ function AppContent() {
       if (u) {
         const userDocRef = doc(db, "users", u.email.toLowerCase());
         const userSnap = await getDoc(userDocRef);
-        setIsAdmin(userSnap.exists() && userSnap.data().isAdmin === true);
-        setUser(u);
+        if (userSnap.exists()) {
+          // USER IS IN YOUR LIST
+          setIsAuthorized(true);
+          setIsAdmin(userSnap.data().isAdmin === true);
+          setUser(u);
+        } else {
+          // USER IS AUTHENTICATED BY GOOGLE BUT NOT IN YOUR DATABASE
+          setIsAuthorized(false);
+          setIsAdmin(false);
+          setUser(u); // We keep the user object to show a "Access Denied" message
+        }
       } else {
         setUser(null);
         setIsAdmin(false);
+        setIsAuthorized(false);
       }
       setLoading(false);
     });
@@ -176,7 +187,7 @@ function AppContent() {
           width: "100%",
           height: isMobile ? "280px" : "400px",
           marginBottom: "-1px", // Fixes sub-pixel gap line
-          overflow: "visible", 
+          overflow: "visible",
         }}
       >
         {/* Subtle Bottom Transition Overlay */}
@@ -192,7 +203,7 @@ function AppContent() {
             zIndex: 2,
           }}
         />
-        
+
         <CardMedia
           component="img"
           image="/baitussalam.jpg"
@@ -262,7 +273,7 @@ function AppContent() {
                 gap: 1,
               }}
             >
-              Baitus Salam Booking Portal{" "}
+              Bait us Salam Booking Portal{" "}
               {isAdmin && (
                 <VerifiedUser
                   sx={{ color: "secondary.main" }}
@@ -323,11 +334,13 @@ function AppContent() {
           {user && (
             <Typography
               variant={isMobile ? "h5" : "h4"}
-              sx={{ 
-                fontWeight: "bold", 
-                color: "primary.main", 
+              sx={{
+                fontWeight: "bold",
+                color: "primary.main",
                 mb: 4,
-                textShadow: isMobile ? "0px 1px 2px rgba(255,255,255,0.8)" : "none" 
+                textShadow: isMobile
+                  ? "0px 1px 2px rgba(255,255,255,0.8)"
+                  : "none",
               }}
             >
               {getPageTitle()}
@@ -446,13 +459,19 @@ function AppContent() {
 
               <Route
                 path="/calendar"
-                element={<BookingsCalendar bookings={bookings} />}
+                element={
+                  isAuthorized ? (
+                    <BookingsCalendar bookings={bookings} isAdmin={isAdmin} />
+                  ) : (
+                    <Navigate to="/" />
+                  )
+                }
               />
-              <Route
+                            <Route
                 path="/my-bookings"
                 element={
                   user ? (
-                    <MyBookings user={user} bookings={bookings} />
+                    <MyBookings bookings={bookings} isAdmin={isAdmin} />
                   ) : (
                     <Navigate to="/" />
                   )

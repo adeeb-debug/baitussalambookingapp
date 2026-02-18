@@ -44,8 +44,8 @@ export default function Navigation({
   const theme = useTheme();
   const location = useLocation();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  
 
-  // Navigation mapping updated to use URL paths
   const navigationItems = [
     ...(user
       ? [
@@ -53,7 +53,7 @@ export default function Navigation({
             name: "Request a Booking",
             path: VIEWS.REQUEST_BOOKING,
             icon: <AddCircleOutline />,
-            requiredAuth: true, // Everyone sees this (they get the sign-in banner if not logged in)
+            requiredAuth: true,
           },
           {
             name: "My Bookings",
@@ -61,17 +61,18 @@ export default function Navigation({
             icon: <History />,
             requiredAuth: true,
           },
-        ]
-      : []),
-    ...(isAdmin
-      ? [
+          // MOVED HERE: Available to all logged-in users
           {
             name: "Schedule Calendar",
             path: VIEWS.BOOKINGS_CALENDAR,
             icon: <CalendarMonth />,
             requiredAuth: true,
-            adminOnly: true,
+            adminOnly: false, // Set to false so everyone in your list sees it
           },
+        ]
+      : []),
+    ...(isAdmin
+      ? [
           {
             name: "All Bookings",
             path: VIEWS.ALL_BOOKINGS,
@@ -89,7 +90,6 @@ export default function Navigation({
         ]
       : []),
   ];
-
   const isLoggedIn = Boolean(user);
   const visibleNavigationItems = navigationItems.filter((item) => {
     if (item.requiredAuth && !isLoggedIn) return false;
