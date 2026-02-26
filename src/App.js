@@ -481,7 +481,7 @@ function AppContent() {
                 path="/all-bookings"
                 element={
                   isAdmin ? (
-                    <AllBookings bookings={bookings} />
+                    <AllBookings bookings={bookings} user={user} />
                   ) : (
                     <Navigate to="/" />
                   )

@@ -183,7 +183,7 @@ export const sendAdminNotification = async (db, formData, bookingId) => {
 //----------------------------------------------------------------------------
 //SEND Update to User (initiated by Admin click) upon booking decision made
 //----------------------------------------------------------------------------
-export const sendUserConfirmation = async (db, group) => {
+export const sendUserConfirmation = async (db, group, user) => {
   // Generate the HTML list of statuses for the email
   const locationListHtml = group.bookings
     .map(
@@ -236,6 +236,9 @@ export const sendUserConfirmation = async (db, group) => {
       batch.update(ref, {
         userNotified: true,
         notifiedAt: new Date().toISOString(),
+        // 2. Add these audit fields
+        actionByEmail: user?.email || "System",
+        actionByName: user?.displayName || user?.email || "Admin",
       });
     });
     await batch.commit();

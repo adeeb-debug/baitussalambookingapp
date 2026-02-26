@@ -44,7 +44,7 @@ const parseFirebaseDate = (dateStr) => {
 
 
 
-export default function AllBookings({ isAdmin, bookings = [], loading }) {
+export default function AllBookings({ bookings = [], loading,user }) {
 
   const [searchParams, setSearchParams] = useSearchParams();
   const [filterStatus, setFilterStatus] = useState(STATUSES.ALL);
@@ -150,15 +150,17 @@ export default function AllBookings({ isAdmin, bookings = [], loading }) {
     return groupBookings(result, filterLocation);
   }, [bookings, filterStatus, filterLocation, searchQuery, startDate, endDate]);
 
-  const handleSendEmail = async (group) => {
+const handleSendEmail = async (group) => {
     if (!window.confirm(`Send final decision email to ${group.requestedByEmail}?`)) return;
     setGroupActionLoadingId(group.groupId);
     try {
+      // Pass the 'user' object as the 3rd argument here
       await sendUserConfirmation(db, {
         ...group,
         eventName: group.eventName,
         requestedByEmail: group.requestedByEmail,
-      });
+      }, user); 
+      
       alert("Success: User has been notified.");
     } catch (err) {
       console.error(err);
@@ -178,7 +180,10 @@ export default function AllBookings({ isAdmin, bookings = [], loading }) {
       const batch = writeBatch(db);
       pendingBookings.forEach((booking) => {
         const ref = doc(db, "bookings", booking.id);
-        batch.update(ref, { status: action });
+        batch.update(ref, { status: action, // Use the 'user' prop directly here
+          actionByEmail: user?.email,
+          actionByName: user?.displayName || user?.email,
+          actionAt: new Date().toISOString() });
       });
       await batch.commit();
     } catch (err) {
@@ -194,7 +199,9 @@ export default function AllBookings({ isAdmin, bookings = [], loading }) {
     setIndividualActionLoadingId(bookingId);
     try {
       const ref = doc(db, "bookings", bookingId);
-      await updateDoc(ref, { status: action });
+      await updateDoc(ref, { status: action, actionByEmail: user?.email,
+        actionByName: user?.displayName || user?.email,
+        actionAt: new Date().toISOString() });
     } catch (err) {
       console.error(err);
       alert("Update failed");
