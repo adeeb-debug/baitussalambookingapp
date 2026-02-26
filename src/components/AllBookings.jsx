@@ -285,6 +285,8 @@ const handleSendEmail = async (group) => {
               <TableCell align="center" sx={{ fontWeight: 700 }}>Status</TableCell>
               {/* Ensure this displays if isAdmin is true */}
               <TableCell align="center" sx={{ fontWeight: 700 }}>Actions</TableCell>
+              <TableCell align="center" sx={{ fontWeight: 700 }}>Actioned By</TableCell>
+              
             </TableRow>
           </TableHead>
           <TableBody>

@@ -44,20 +44,21 @@ export default function IndividualBookingListItem({
         justifyContent: "space-between",
       }}
     >
-      <ListItemText
-        primary={booking.location}
-        secondary={
-          <Typography
-            variant="caption"
-            sx={{
-              fontWeight: 600,
-              color: statusColor[booking.status],
-            }}
-          >
-            Status: {booking.status}
-          </Typography>
-        }
-      />
+<ListItemText
+  primary={booking.location}
+  secondary={
+    <Box>
+      <Typography variant="caption" sx={{ fontWeight: 600, color: statusColor[booking.status] }}>
+        Status: {booking.status}
+      </Typography>
+      {booking.actionByName && (
+        <Typography variant="caption" sx={{ display: 'block', color: 'text.disabled' }}>
+          Actioned by: {booking.actionByName}
+        </Typography>
+      )}
+    </Box>
+  }
+/>
 
       {displayActions && (
         <Box sx={{ display: "flex", gap: 0.5 }}>

@@ -167,6 +167,17 @@ export default function PendingGroupRow({
     </Stack>
         </TableCell>
 )}
+
+<TableCell align="center">
+  <Typography variant="body2" sx={{ fontWeight: 500, color: 'text.secondary' }}>
+    {group.bookings[0]?.actionByName || "-"}
+  </Typography>
+  {group.bookings[0]?.actionAt && (
+    <Typography variant="caption" sx={{ display: 'block', color: 'text.disabled', fontSize: '10px' }}>
+      {new Date(group.bookings[0].actionAt).toLocaleDateString()}
+    </Typography>
+  )}
+</TableCell>
       </TableRow>
 
       <TableRow>
@@ -186,6 +197,7 @@ export default function PendingGroupRow({
                     isActionLoading={
                       individualActionLoadingId === booking.id
                     }
+                    isAdmin={isAdmin}
                   />
                 ))}
               </List>
