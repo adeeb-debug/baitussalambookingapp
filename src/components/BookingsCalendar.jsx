@@ -35,12 +35,28 @@ export default function BookingsCalendar({ bookings }) {
   // State for the Detail Dialog
   const [selectedEvent, setSelectedEvent] = useState(null);
 
-  // Map Firestore bookings to FullCalendar events
-  const events = (bookings || []).map(b => {
-    // Handle multi-location display in title
-    const locationText = Array.isArray(b.locations) 
-      ? b.locations.join(", ") 
-      : b.location || "N/A";
+  const groupedData = (bookings || []).reduce((acc, current) => {
+  const key = current.groupId; // This links your multiple locations together
+
+  if (!acc[key]) {
+    // If this is the first time seeing this groupId, initialize it
+    acc[key] = {
+      ...current,
+      // Ensure locations is always an array for merging
+      allLocations: Array.isArray(current.locations) ? [...current.locations] : [current.location]
+    };
+  } else {
+    // If groupId exists, just merge new locations into the existing entry
+    const newLocs = Array.isArray(current.locations) ? current.locations : [current.location];
+    acc[key].allLocations = [...new Set([...acc[key].allLocations, ...newLocs])];
+  }
+  
+  return acc;
+}, {});
+
+// 2. Map the grouped objects to FullCalendar events
+const events = Object.values(groupedData).map(b => {
+  const locationText = b.allLocations.filter(Boolean).join(", ");
 
     return {
       id: b.id || Math.random().toString(),
