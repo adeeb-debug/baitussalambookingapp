@@ -256,6 +256,7 @@ function AppContent() {
               <Navigation
                 user={user}
                 isAdmin={isAdmin}
+                isAuthorized={isAuthorized}
                 onNavigate={(path) => navigate(path)}
                 isDrawerOpen={isDrawerOpen}
                 setIsDrawerOpen={setIsDrawerOpen}

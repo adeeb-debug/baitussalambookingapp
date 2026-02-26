@@ -36,6 +36,7 @@ export const VIEWS = {
 export default function Navigation({
   user,
   isAdmin,
+  isAuthorized,
   onNavigate, // Prop from App.js
   isDrawerOpen,
   setIsDrawerOpen,
@@ -46,56 +47,44 @@ export default function Navigation({
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   
 
-  const navigationItems = [
-    ...(user
-      ? [
-          {
-            name: "Request a Booking",
-            path: VIEWS.REQUEST_BOOKING,
-            icon: <AddCircleOutline />,
-            requiredAuth: true,
-          },
-          {
-            name: "My Bookings",
-            path: VIEWS.MY_BOOKINGS,
-            icon: <History />,
-            requiredAuth: true,
-          },
-          // MOVED HERE: Available to all logged-in users
-          {
-            name: "Schedule Calendar",
-            path: VIEWS.BOOKINGS_CALENDAR,
-            icon: <CalendarMonth />,
-            requiredAuth: true,
-            adminOnly: false, // Set to false so everyone in your list sees it
-          },
-        ]
-      : []),
-    ...(isAdmin
-      ? [
-          {
-            name: "All Bookings",
-            path: VIEWS.ALL_BOOKINGS,
-            icon: <Dashboard />,
-            requiredAuth: true,
-            adminOnly: true,
-          },
-          {
-            name: "User Manager",
-            path: VIEWS.USER_MANAGER,
-            icon: <People />,
-            requiredAuth: true,
-            adminOnly: true,
-          },
-        ]
-      : []),
+const navigationItems = [
+    // TIER 1: Any logged in user (Public Authenticated)
+    ...(user ? [
+      {
+        name: "Request a Booking",
+        path: "/",
+        icon: <AddCircleOutline />,
+      },
+      {
+        name: "My Bookings",
+        path: "/my-bookings",
+        icon: <History />,
+      },
+    ] : []),
+
+// TIER 2: Only users found in your DB (Staff/Verified) OR Admins
+...((isAuthorized || isAdmin) ? [
+  {
+    name: "Schedule Calendar",
+    path: "/calendar",
+    icon: <CalendarMonth />,
+  },
+] : []),
+    // TIER 3: Admin Only
+    ...(isAdmin ? [
+      {
+        name: "All Bookings",
+        path: "/all-bookings",
+        icon: <Dashboard />,
+      },
+      {
+        name: "User Manager",
+        path: "/user-manager",
+        icon: <People />,
+      },
+    ] : []),
   ];
-  const isLoggedIn = Boolean(user);
-  const visibleNavigationItems = navigationItems.filter((item) => {
-    if (item.requiredAuth && !isLoggedIn) return false;
-    if (item.adminOnly && !isAdmin) return false;
-    return true;
-  });
+const visibleNavigationItems = navigationItems;
 
   const handleNavigate = (path) => {
     onNavigate(path);

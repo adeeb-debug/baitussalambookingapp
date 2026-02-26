@@ -9,7 +9,7 @@ import {
   Collapse,
   Divider,
   List,
-    Stack,
+  Stack,
   Tooltip,
   CircularProgress,
 } from "@mui/material";
@@ -22,7 +22,6 @@ import {
   People,
   DirectionsCar,
   Send, // Added for the email button
-  MarkEmailRead, // Added for the notified state
   DeleteOutline,
 } from "@mui/icons-material";
 import { useTheme } from "@mui/material/styles";
@@ -37,18 +36,17 @@ export default function PendingGroupRow({
   individualActionLoadingId,
   groupActionLoadingId,
   isAdmin,
-  
 }) {
   const theme = useTheme();
   const [expanded, setExpanded] = useState(false);
 
   // LOGIC: Check counts
-  const pendingCount = group.bookings.filter((b) => b.status === "Pending").length;
-  
+  const pendingCount = group.bookings.filter(
+    (b) => b.status === "Pending",
+  ).length;
+
   // LOGIC: Is every single booking in this group processed?
-  const isProcessComplete = group.bookings.every(
-    (b) => b.status !== "Pending"
-  );
+  const isProcessComplete = group.bookings.every((b) => b.status !== "Pending");
 
   // LOGIC: Has the user already been emailed?
   // (Assuming you've updated your database schema as discussed previously)
@@ -65,11 +63,9 @@ export default function PendingGroupRow({
           </IconButton>
         </TableCell>
 
-                <TableCell>
+        <TableCell>
           <Box sx={{ display: "flex", gap: 1 }}>
-            <Typography fontWeight={600}>
-              {group.bookingId}
-            </Typography>
+            <Typography fontWeight={600}>{group.bookingId}</Typography>
           </Box>
         </TableCell>
 
@@ -88,9 +84,7 @@ export default function PendingGroupRow({
           </Typography>
         </TableCell>
 
-        <TableCell>
-          {group.requestedByName || "N/A"}
-        </TableCell>
+        <TableCell>{group.requestedByName || "N/A"}</TableCell>
 
         <TableCell>{group.phoneNumber || "N/A"}</TableCell>
 
@@ -103,81 +97,105 @@ export default function PendingGroupRow({
         <TableCell align="center">
           {pendingCount} Pending / {group.bookings.length}
         </TableCell>
-{isAdmin && (
-        <TableCell>
-    <Stack direction="row" spacing={1} alignItems="center">
-      {/* --- EXISTING LOGIC: PENDING ACTIONS OR NOTIFY --- */}
-      {pendingCount > 0 ? (
-        <Box sx={{ display: "flex", gap: 1 }}>
-          <Button
-            size="small"
-            color="success"
-            variant="contained"
-            onClick={() => handleGroupAction(group, "Approved")}
-            disabled={isGroupLoading}
-          >
-            <CheckCircleOutline fontSize="small" />
-          </Button>
-          <Button
-            size="small"
-            color="error"
-            variant="contained"
-            onClick={() => handleGroupAction(group, "Rejected")}
-            disabled={isGroupLoading}
-          >
-            <CancelOutlined fontSize="small" />
-          </Button>
-        </Box>
-      ) : isProcessComplete && !isAlreadyNotified ? (
-        <Button
-          size="small"
-          color="info"
-          variant="contained"
-          startIcon={<Send />}
-          onClick={() => handleSendEmail(group)}
-          disabled={isGroupLoading}
-          sx={{ whiteSpace: 'nowrap' }}
-        >
-          {isGroupLoading ? "Sending..." : "Notify"}
-        </Button>
-      ) : (
-        <Box sx={{ display: 'flex', alignItems: 'center', color: 'success.main', gap: 0.5 }}>
-          <MarkEmailRead fontSize="small" />
-          <Typography variant="caption" fontWeight={700}>Notified</Typography>
-        </Box>
-      )}
+        {isAdmin && (
+          <TableCell>
+            <Stack direction="row" spacing={1} alignItems="center">
+              {/* 1. Show Approve/Reject if anything is still Pending */}
+              {pendingCount > 0 ? (
+                <Box sx={{ display: "flex", gap: 1 }}>
+                  <Button
+                    size="small"
+                    color="success"
+                    variant="contained"
+                    onClick={() => handleGroupAction(group, "Approved")}
+                    disabled={isGroupLoading}
+                  >
+                    <CheckCircleOutline fontSize="small" />
+                  </Button>
+                  <Button
+                    size="small"
+                    color="error"
+                    variant="contained"
+                    onClick={() => handleGroupAction(group, "Rejected")}
+                    disabled={isGroupLoading}
+                  >
+                    <CancelOutlined fontSize="small" />
+                  </Button>
+                </Box>
+              ) : isProcessComplete ? (
+                /* 2. When process is complete, show BOTH status and Button */
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+                  {isAlreadyNotified && (
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        color: "success.main",
+                        gap: 0.5,
+                      }}
+                    >
+                    </Box>
+                  )}
 
-      {/* --- NEW: DELETE BUTTON (Always visible for Admin) --- */}
-      <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
-      
-      <Tooltip title="Delete Entire Booking">
-        <IconButton
-          size="small"
-          color="error"
-          onClick={() => handleDeleteBooking(group)}
-          disabled={individualActionLoadingId === group}
-        >
-          {individualActionLoadingId === group.groupId ? ( 
-            <CircularProgress size={20} color="inherit" />
-          ) : (
-            <DeleteOutline fontSize="small" />
+                  <Button
+                    size="small"
+                    color="info"
+                    variant="contained"
+                    startIcon={<Send />}
+                    onClick={() => handleSendEmail(group)}
+                    disabled={isGroupLoading}
+                    sx={{ whiteSpace: "nowrap" }}
+                  >
+                    {isGroupLoading
+                      ? "Sending..."
+                      : isAlreadyNotified
+                        ? "Resend"
+                        : "Notify"}
+                  </Button>
+                </Box>
+              ) : null}
+
+              {/* --- DELETE BUTTON (Always visible for Admin) --- */}
+              <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
+
+              <Tooltip title="Delete Entire Booking">
+                <IconButton
+                  size="small"
+                  color="error"
+                  onClick={() => handleDeleteBooking(group)}
+                  disabled={individualActionLoadingId === group.groupId}
+                >
+                  {individualActionLoadingId === group.groupId ? (
+                    <CircularProgress size={20} color="inherit" />
+                  ) : (
+                    <DeleteOutline fontSize="small" />
+                  )}
+                </IconButton>
+              </Tooltip>
+            </Stack>
+          </TableCell>
+        )}
+
+        <TableCell align="center">
+          <Typography
+            variant="body2"
+            sx={{ fontWeight: 500, color: "text.secondary" }}
+          >
+            {group.bookings[0]?.actionByName || "-"}
+          </Typography>
+          {group.bookings[0]?.actionAt && (
+            <Typography
+              variant="caption"
+              sx={{
+                display: "block",
+                color: "text.disabled",
+                fontSize: "10px",
+              }}
+            >
+              {new Date(group.bookings[0].actionAt).toLocaleDateString()}
+            </Typography>
           )}
-        </IconButton>
-      </Tooltip>
-    </Stack>
         </TableCell>
-)}
-
-<TableCell align="center">
-  <Typography variant="body2" sx={{ fontWeight: 500, color: 'text.secondary' }}>
-    {group.bookings[0]?.actionByName || "-"}
-  </Typography>
-  {group.bookings[0]?.actionAt && (
-    <Typography variant="caption" sx={{ display: 'block', color: 'text.disabled', fontSize: '10px' }}>
-      {new Date(group.bookings[0].actionAt).toLocaleDateString()}
-    </Typography>
-  )}
-</TableCell>
       </TableRow>
 
       <TableRow>
@@ -194,9 +212,7 @@ export default function PendingGroupRow({
                     key={booking.id}
                     booking={booking}
                     handleIndividualAction={handleIndividualAction}
-                    isActionLoading={
-                      individualActionLoadingId === booking.id
-                    }
+                    isActionLoading={individualActionLoadingId === booking.id}
                     isAdmin={isAdmin}
                   />
                 ))}
