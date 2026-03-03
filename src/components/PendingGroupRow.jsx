@@ -26,6 +26,7 @@ import {
 } from "@mui/icons-material";
 import { useTheme } from "@mui/material/styles";
 import IndividualBookingListItem from "./IndividualBookingListItem";
+import dayjs from "dayjs";
 
 export default function PendingGroupRow({
   group,
@@ -78,7 +79,9 @@ export default function PendingGroupRow({
         </TableCell>
 
         <TableCell>
-          <Typography fontWeight={700}>{group.date}</Typography>
+          <Typography fontWeight={700}>
+            {group.date ? dayjs(group.date).format("DD/MM/YYYY") : "N/A"}
+          </Typography>
           <Typography variant="caption">
             {group.fromTime} - {group.toTime}
           </Typography>
@@ -133,8 +136,7 @@ export default function PendingGroupRow({
                         color: "success.main",
                         gap: 0.5,
                       }}
-                    >
-                    </Box>
+                    ></Box>
                   )}
 
                   <Button
@@ -192,7 +194,7 @@ export default function PendingGroupRow({
                 fontSize: "10px",
               }}
             >
-              {new Date(group.bookings[0].actionAt).toLocaleDateString()}
+              {dayjs(group.bookings[0].actionAt).format("DD/MM/YYYY")}
             </Typography>
           )}
         </TableCell>

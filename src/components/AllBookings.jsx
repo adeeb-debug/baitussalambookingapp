@@ -30,17 +30,11 @@ import {
 import { FilterList, Search, RestartAlt } from "@mui/icons-material";
 import { doc, updateDoc, writeBatch } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
-
 import { STATUSES } from "../utils/statuses";
 import { groupBookings } from "../utils/groupBookings";
 import { sendUserConfirmation } from "../utils/bookingService";
 import PendingGroupRow from "./PendingGroupRow";
-
-const parseFirebaseDate = (dateStr) => {
-  if (!dateStr || typeof dateStr !== "string") return null;
-  const [day, month, year] = dateStr.split("-").map(Number);
-  return new Date(year, month - 1, day);
-};
+import dayjs from "dayjs";
 
 
 
@@ -125,24 +119,25 @@ export default function AllBookings({ bookings = [], loading,user }) {
 
       const search = searchQuery.toLowerCase();
       const matchesSearch =
- b.bookingId.toLowerCase().includes(search) ||
+        b.bookingId.toLowerCase().includes(search) ||
         b.eventName?.toLowerCase().includes(search) ||
         b.requestedByName?.toLowerCase().includes(search) ||
         b.requestedByEmail?.toLowerCase().includes(search);
       if (!matchesSearch) return false;
 
-      const bookingDateObj = parseFirebaseDate(b.date);
-      if (bookingDateObj) {
-        if (startDate) {
-          const start = new Date(startDate);
-          start.setHours(0, 0, 0, 0);
-          if (bookingDateObj < start) return false;
-        }
-        if (endDate) {
-          const end = new Date(endDate);
-          end.setHours(23, 59, 59, 999);
-          if (bookingDateObj > end) return false;
-        }
+      const bookingDateObj = dayjs(b.date);
+      if (bookingDateObj.isValid()) {
+  if (startDate) {
+    // Start of the selected day (00:00:00)
+    const startBound = dayjs(startDate).startOf('day');
+    if (bookingDateObj.isBefore(startBound)) return false;
+  }
+  
+  if (endDate) {
+    // End of the selected day (23:59:59)
+    const endBound = dayjs(endDate).endOf('day');
+    if (bookingDateObj.isAfter(endBound)) return false;
+  }
       }
       return true;
     });

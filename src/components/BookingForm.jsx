@@ -25,7 +25,7 @@ import {
 } from "../utils/bookingService";
 import BookingFormFields from "./BookingFormFields";
 
-export default function BookingForm({ user, bookings }) {
+export default function BookingForm({ user,isAdmin, bookings }) {
   const INITIAL_FORM_DATA = (user) => ({
     fullName: user?.displayName || "",
     phoneNumber: "",
@@ -186,6 +186,7 @@ useEffect(() => {
               formData={formData}
               setFormData={setFormData}
               availableLocations={availableLocations}
+              isAdmin={isAdmin}
             />
 
             <Alert severity="info" sx={{ my: 2 }}>

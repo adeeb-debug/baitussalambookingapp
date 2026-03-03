@@ -19,6 +19,7 @@ export default function BookingFormFields({
   formData,
   setFormData,
   availableLocations,
+  isAdmin,
 }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
@@ -35,16 +36,14 @@ export default function BookingFormFields({
 
   const fieldSpacing = isMobile ? 2.5 : 3;
 
-  const minDate = dayjs().add(2, "day");
-  const maxDate = dayjs().add(2, "month");
+  const minDate = isAdmin ? null : dayjs().add(2, "day");
+  const maxDate = isAdmin ? null : dayjs().add(2, "month");
 
   const blockTyping = (e) => e.preventDefault();
 
   const isPhoneInvalid =
     touched.phoneNumber &&
-    !/^((04\d{8})|(614\d{8})|(0[2378]\d{8}))$/.test(
-      formData.phoneNumber || ""
-    );
+    !/^((04\d{8})|(614\d{8})|(0[2378]\d{8}))$/.test(formData.phoneNumber || "");
 
   return (
     <Box>
@@ -126,102 +125,107 @@ export default function BookingFormFields({
           handleChange("date")(val ? val.format("YYYY-MM-DD") : "");
         }}
         slotProps={{
+          field: {
+            readOnly: true,
+            onKeyDown: (e) => e.preventDefault(),
+          },
           textField: {
             required: true,
             fullWidth: true,
-            sx: { mb: fieldSpacing },
+            sx: {
+              mb: fieldSpacing,
+              "& .MuiInputBase-input": { pointerEvents: "none" },
+            },
             error: touched.date && !formData.date,
             helperText:
               touched.date && !formData.date
-                ? "Date is required (min 2 days ahead)"
-                : "Bookings must be made at least 2 days in advance",
+                ? "Date is required"
+                : isAdmin
+                  ? "Admin Mode: No date restrictions applied"
+                  : "Bookings must be made at least 2 days in advance",
             InputProps: { readOnly: true },
-            onKeyDown: blockTyping,
+            onKeyDown: (e) => e.preventDefault(),
           },
         }}
       />
 
+      <Box sx={{ display: "flex", gap: 2, mb: fieldSpacing }}>
+        <TimePicker
+          label="From"
+          required
+          ampm={false}
+          format="HH:mm"
+          value={
+            formData.fromTime
+              ? baseDate
+                  .hour(dayjs(formData.fromTime, "HH:mm").hour())
+                  .minute(dayjs(formData.fromTime, "HH:mm").minute())
+              : null
+          }
+          minTime={baseDate.hour(5)}
+          maxTime={baseDate.hour(20)}
+          minutesStep={5}
+          onChange={(val) => {
+            markTouched("fromTime");
+            const newFrom = val ? val.format("HH:mm") : null;
+            handleChange("fromTime")(newFrom);
 
-<Box sx={{ display: "flex", gap: 2, mb: fieldSpacing }}>
-  <TimePicker
-    label="From"
-    required
-    ampm={false}
-    format="HH:mm"
-    value={
-      formData.fromTime
-        ? baseDate
-            .hour(dayjs(formData.fromTime, "HH:mm").hour())
-            .minute(dayjs(formData.fromTime, "HH:mm").minute())
-        : null
-    }
-    minTime={baseDate.hour(5)}
-    maxTime={baseDate.hour(20)}
-    minutesStep={5}
-    onChange={(val) => {
-      markTouched("fromTime");
-      const newFrom = val ? val.format("HH:mm") : null;
-      handleChange("fromTime")(newFrom);
+            if (
+              formData.toTime &&
+              dayjs(formData.toTime, "HH:mm").isBefore(dayjs(newFrom, "HH:mm"))
+            ) {
+              handleChange("toTime")(null);
+            }
+          }}
+          slotProps={{
+            textField: {
+              fullWidth: true,
+              error: touched.fromTime && !formData.fromTime,
+              helperText:
+                touched.fromTime && !formData.fromTime ? "Required" : undefined,
+              InputProps: { readOnly: true },
+              onKeyDown: blockTyping,
+            },
+          }}
+        />
 
-      if (
-        formData.toTime &&
-        dayjs(formData.toTime, "HH:mm").isBefore(
-          dayjs(newFrom, "HH:mm")
-        )
-      ) {
-        handleChange("toTime")(null);
-      }
-    }}
-    slotProps={{
-      textField: {
-        fullWidth: true,
-        error: touched.fromTime && !formData.fromTime,
-        helperText:
-          touched.fromTime && !formData.fromTime ? "Required" : undefined,
-        InputProps: { readOnly: true },
-        onKeyDown: blockTyping,
-      },
-    }}
-  />
-
-  <TimePicker
-    label="To"
-    required
-    ampm={false}
-    format="HH:mm"
-    value={
-      formData.toTime
-        ? baseDate
-            .hour(dayjs(formData.toTime, "HH:mm").hour())
-            .minute(dayjs(formData.toTime, "HH:mm").minute())
-        : null
-    }
-    minTime={
-      formData.fromTime
-        ? baseDate
-            .hour(dayjs(formData.fromTime, "HH:mm").hour())
-            .minute(dayjs(formData.fromTime, "HH:mm").minute())
-        : baseDate.hour(5)
-    }
-    maxTime={baseDate.hour(20)}
-    minutesStep={5}
-    onChange={(val) => {
-      markTouched("toTime");
-      handleChange("toTime")(val ? val.format("HH:mm") : null);
-    }}
-    slotProps={{
-      textField: {
-        fullWidth: true,
-        error: touched.toTime && !formData.toTime,
-        helperText:
-          touched.toTime && !formData.toTime ? "Required" : undefined,
-        InputProps: { readOnly: true },
-        onKeyDown: blockTyping,
-      },
-    }}
-  />
-</Box>
-
+        <TimePicker
+          label="To"
+          required
+          ampm={false}
+          format="HH:mm"
+          value={
+            formData.toTime
+              ? baseDate
+                  .hour(dayjs(formData.toTime, "HH:mm").hour())
+                  .minute(dayjs(formData.toTime, "HH:mm").minute())
+              : null
+          }
+          minTime={
+            formData.fromTime
+              ? baseDate
+                  .hour(dayjs(formData.fromTime, "HH:mm").hour())
+                  .minute(dayjs(formData.fromTime, "HH:mm").minute())
+              : baseDate.hour(5)
+          }
+          maxTime={baseDate.hour(20)}
+          minutesStep={5}
+          onChange={(val) => {
+            markTouched("toTime");
+            handleChange("toTime")(val ? val.format("HH:mm") : null);
+          }}
+          slotProps={{
+            textField: {
+              fullWidth: true,
+              error: touched.toTime && !formData.toTime,
+              helperText:
+                touched.toTime && !formData.toTime ? "Required" : undefined,
+              InputProps: { readOnly: true },
+              onKeyDown: blockTyping,
+            },
+          }}
+        />
+      </Box>
 
       {/* Locations */}
       <FormControl
