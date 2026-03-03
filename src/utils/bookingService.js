@@ -185,6 +185,7 @@ export const sendAdminNotification = async (db, formData, bookingId) => {
 //----------------------------------------------------------------------------
 export const sendUserConfirmation = async (db, group, user) => {
   // Generate the HTML list of statuses for the email
+  const approverNote = group.bookings[0]?.approverNote || "";
   const locationListHtml = group.bookings
     .map(
       (b) => `
@@ -211,17 +212,26 @@ export const sendUserConfirmation = async (db, group, user) => {
             </div>
             <div style="padding: 20px; line-height: 1.6;">
               <p>Assalam o Alaikum <strong>${group.requestedByName}</strong>,</p>
-              <p>The booking request for <strong>${group.eventName} has been reviewed.</strong>.</p>
+              <p>The booking request for <strong>${group.eventName}</strong> has been reviewed.</p>
+              
               <div style="margin: 20px 0;">
                 ${locationListHtml}
               </div>
-             <p>For any questions regarding your booking, please contact:</p>
-              <ul>
+
+              ${approverNote ? `
+                <div style="margin-top: 20px; padding: 15px; border-left: 4px solid #1976d2; background-color: #f0f7ff;">
+                  <strong style="display: block; color: #1976d2; margin-bottom: 5px;">Note from Approver:</strong>
+                  <p style="margin: 0; color: #444; font-style: italic;">"${approverNote}"</p>
+                </div>
+              ` : ""}
+
+              <p style="margin-top: 20px;">For any questions regarding your booking, please contact:</p>
+              <ul style="padding-left: 20px;">
                 <li>Sadar Jamaat Langwarrin - Mubarik Minhas: 0468 727 929</li>
                 <li>Naib Sadar Jamaat Langwarrin - Ansar Shareef: 0426 714 215</li>
               </ul>
 
-                            <p style="font-size: 0.8rem; color: #888; border-top: 1px solid #eee; padding-top: 10px;">
+              <p style="font-size: 0.8rem; color: #888; border-top: 1px solid #eee; padding-top: 10px; margin-top: 30px;">
                 This is an automated acknowledgment. Please do not reply to this email.
               </p>
             </div>

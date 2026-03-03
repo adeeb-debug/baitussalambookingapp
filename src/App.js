@@ -468,11 +468,16 @@ function AppContent() {
                   )
                 }
               />
-                            <Route
+              <Route
                 path="/my-bookings"
                 element={
                   user ? (
-                    <MyBookings bookings={bookings} isAdmin={isAdmin} />
+                    <MyBookings
+                      bookings={bookings}
+                      isAdmin={isAdmin}
+                      user={user} // ✅ Add this
+                      loading={loading} // ✅ Add this (if you have a loading state)
+                    />
                   ) : (
                     <Navigate to="/" />
                   )

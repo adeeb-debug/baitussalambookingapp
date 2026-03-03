@@ -84,7 +84,8 @@ export default function MyBookings({ user, bookings, loading }) {
           toTime: b.toTime,
           phoneNumber: b.phoneNumber,
           bookings: [],
-          rejectionReason: null
+          rejectionReason: null,
+          approverNote: b.approverNote || null
         };
       }
       grouped[groupId].bookings.push(b);
@@ -208,13 +209,13 @@ export default function MyBookings({ user, bookings, loading }) {
                       />
                     </Box>
 
-                    {group.rejectionReason && (
+                    {group.approverNote && (
                       <Alert severity="error" icon={false} sx={{ mt: 1, py: 0.5, px: 1.5, borderRadius: 2 }}>
                         <Typography variant="caption" sx={{ fontWeight: 800, display: 'block' }}>
-                          ADMIN FEEDBACK:
+                          Approver Note:
                         </Typography>
                         <Typography variant="body2" sx={{ fontSize: '0.8rem', fontStyle: 'italic' }}>
-                          "{group.rejectionReason}"
+                          "{group.approverNote}"
                         </Typography>
                       </Alert>
                     )}
