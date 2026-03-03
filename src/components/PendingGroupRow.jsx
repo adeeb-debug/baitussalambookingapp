@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import {
   TableRow,
   TableCell,
@@ -25,7 +25,7 @@ import {
   DeleteOutline,
 } from "@mui/icons-material";
 import { useTheme } from "@mui/material/styles";
-import IndividualBookingListItem from "./IndividualBookingListItem";
+import BookingsListForMyBookings from "./BookingsListForMyBookings";
 import dayjs from "dayjs";
 
 export default function PendingGroupRow({
@@ -139,21 +139,18 @@ export default function PendingGroupRow({
                     ></Box>
                   )}
 
-                  <Button
-                    size="small"
-                    color="info"
-                    variant="contained"
-                    startIcon={<Send />}
-                    onClick={() => handleSendEmail(group)}
-                    disabled={isGroupLoading}
-                    sx={{ whiteSpace: "nowrap" }}
-                  >
-                    {isGroupLoading
-                      ? "Sending..."
-                      : isAlreadyNotified
-                        ? "Resend"
-                        : "Notify"}
-                  </Button>
+                  {isAlreadyNotified && (
+                    <Button
+                      size="small"
+                      color="info"
+                      variant="outlined" // Outlined looks better for "secondary" actions like resending
+                      startIcon={<Send />}
+                      onClick={() => handleSendEmail(group)}
+                      disabled={isGroupLoading}
+                    >
+                      {isGroupLoading ? "Sending..." : "Resend Email"}
+                    </Button>
+                  )}
                 </Box>
               ) : null}
 
@@ -210,7 +207,7 @@ export default function PendingGroupRow({
               <Divider sx={{ my: 1 }} />
               <List disablePadding>
                 {group.bookings.map((booking) => (
-                  <IndividualBookingListItem
+                  <BookingsListForMyBookings
                     key={booking.id}
                     booking={booking}
                     handleIndividualAction={handleIndividualAction}

@@ -26,6 +26,7 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  Snackbar,
 } from "@mui/material";
 import { FilterList, Search, RestartAlt } from "@mui/icons-material";
 import { doc, updateDoc, writeBatch } from "firebase/firestore";
@@ -44,6 +45,13 @@ export default function AllBookings({ bookings = [], loading, user }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: "",
+    severity: "success", // "success" or "error"
+  });
+
+  const handleCloseSnackbar = () => setSnackbar({ ...snackbar, open: false });
 
   // --- DELETE DIALOG STATES ---
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -62,7 +70,6 @@ export default function AllBookings({ bookings = [], loading, user }) {
     data: null, // Stores the group object or bookingId
     note: "",
   });
-
 
   const handleConfirmDecision = async () => {
     const { action, targetType, data, note } = noteModal;
@@ -212,9 +219,34 @@ export default function AllBookings({ bookings = [], loading, user }) {
           actionByEmail: user?.email,
           actionByName: user?.displayName || user?.email,
           actionAt: new Date().toISOString(),
+          userNotified: true,
         });
       });
       await batch.commit();
+
+      try {
+        await sendUserConfirmation(
+          db,
+          {
+            ...group,
+            bookings: group.bookings.map((b) => ({
+              ...b,
+              status: b.status === "Pending" ? action : b.status, // Update pending ones in the local object
+              approverNote: note || "",
+            })),
+          },
+          user,
+        );
+
+        setSnackbar({
+          open: true,
+          message: `Successfully ${action} and email sent to ${group.requestedByEmail}`,
+          severity: "success",
+        });
+      } catch (emailError) {
+        console.error("Database updated, but email failed:", emailError);
+        // We don't want to alert "Failed to update group" because the DB actually succeeded
+      }
     } catch (err) {
       console.error(err);
       alert("Failed to update group");
@@ -250,15 +282,31 @@ export default function AllBookings({ bookings = [], loading, user }) {
       </Box>
     );
 
-    const openNoteModal = (targetType, data, action) => {
-  setNoteModal({
-    open: true,
-    action: action,
-    targetType: targetType,
-    data: data,
-    note: "" // Reset note for each new action
-  });
-};
+  const openNoteModal = (targetType, data, action) => {
+    setNoteModal({
+      open: true,
+      action: action,
+      targetType: targetType,
+      data: data,
+      note: "", // Reset note for each new action
+    });
+  };
+
+  <Snackbar
+  open={snackbar.open}
+  autoHideDuration={5000} // Disappears after 5 seconds
+  onClose={handleCloseSnackbar}
+  anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+>
+  <Alert 
+    onClose={handleCloseSnackbar} 
+    severity={snackbar.severity} 
+    variant="contained"
+    sx={{ width: "100%", borderRadius: 2, fontWeight: 600 }}
+  >
+    {snackbar.message}
+  </Alert>
+</Snackbar>
   return (
     <Box sx={{ pb: 5 }}>
       <Stack
@@ -432,7 +480,9 @@ export default function AllBookings({ bookings = [], loading, user }) {
                   key={group.groupId}
                   group={group}
                   handleGroupAction={(g, a) => openNoteModal("group", g, a)}
-                  handleIndividualAction={(id, a) => openNoteModal("individual", id, a)}
+                  handleIndividualAction={(id, a) =>
+                    openNoteModal("individual", id, a)
+                  }
                   handleDeleteBooking={confirmDelete}
                   handleSendEmail={handleSendEmail}
                   individualActionLoadingId={individualActionLoadingId}
@@ -444,7 +494,21 @@ export default function AllBookings({ bookings = [], loading, user }) {
           </TableBody>
         </Table>
       </TableContainer>
-
+<Snackbar
+        open={snackbar.open}
+        autoHideDuration={5000}
+        onClose={handleCloseSnackbar}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      >
+        <Alert 
+          onClose={handleCloseSnackbar} 
+          severity={snackbar.severity} 
+          variant="filled" // "filled" stands out better than "contained" for alerts
+          sx={{ width: "100%", borderRadius: 2, fontWeight: 600 }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
       <Dialog
         open={deleteDialogOpen}
         onClose={() => setDeleteDialogOpen(false)}
@@ -482,9 +546,7 @@ export default function AllBookings({ bookings = [], loading, user }) {
         fullWidth
         maxWidth="sm"
       >
-        <DialogTitle sx={{ fontWeight: 700 }}>
-          Approver's Note
-        </DialogTitle>
+        <DialogTitle sx={{ fontWeight: 700 }}>Approver's Note</DialogTitle>
         <DialogContent>
           <Typography variant="body2" sx={{ mb: 2, color: "text.secondary" }}>
             Add an optional note to the organiser.

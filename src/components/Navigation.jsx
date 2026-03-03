@@ -62,7 +62,7 @@ const navigationItems = [
       },
     ] : []),
 
-// TIER 2: Only users found in your DB (Staff/Verified) OR Admins
+// TIER 2: Only users found in your DB
 ...((isAuthorized || isAdmin) ? [
   {
     name: "Schedule Calendar",
@@ -70,7 +70,7 @@ const navigationItems = [
     icon: <CalendarMonth />,
   },
 ] : []),
-    // TIER 3: Admin Only
+    // TIER 3: Only users found in your DB that are Admin
     ...(isAdmin ? [
       {
         name: "All Bookings",

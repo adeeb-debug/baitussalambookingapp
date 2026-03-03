@@ -10,7 +10,7 @@ import {
 } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 
-export default function IndividualBookingListItem({
+export default function BookingsListForMyBookings({
   booking,
   handleIndividualAction,
   isActionLoading,
@@ -84,18 +84,6 @@ export default function IndividualBookingListItem({
             disabled={isActionLoading}
           >
             {isActionLoading ? <CircularProgress size={16} /> : "Reject"}
-          </Button>
-
-          <Button
-            size="small"
-            color="error"
-            variant="outlined"
-            onClick={() =>
-              handleIndividualAction(booking.id, "Delete")
-            }
-            disabled={isActionLoading}
-          >
-            Delete
           </Button>
         </Box>
       )}
