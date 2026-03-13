@@ -82,34 +82,36 @@ function AppContent() {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isSignInModalOpen, setIsSignInModalOpen] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isAuthorized, setIsAuthorized] = useState(false);
+  const [role, setRole] = useState("user"); // Default role
 
   const navigate = useNavigate();
   const location = useLocation();
   const isMobile = useMediaQuery(modernTheme.breakpoints.down("sm"));
 
-  // Auth Listener
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
       if (u) {
         const userDocRef = doc(db, "users", u.email.toLowerCase());
         const userSnap = await getDoc(userDocRef);
+
         if (userSnap.exists()) {
-          // USER IS IN YOUR LIST
+          const userData = userSnap.data();
           setIsAuthorized(true);
-          setIsAdmin(userSnap.data().isAdmin === true);
           setUser(u);
+
+          // Force lowercase here so all your checks (role === "admin") always work
+          const normalizedRole = userData.role?.toLowerCase() || "user";
+          setRole(normalizedRole);
         } else {
-          // USER IS AUTHENTICATED BY GOOGLE BUT NOT IN YOUR DATABASE
           setIsAuthorized(false);
-          setIsAdmin(false);
-          setUser(u); // We keep the user object to show a "Access Denied" message
+          setUser(u);
+          setRole("unauthorized");
         }
       } else {
         setUser(null);
-        setIsAdmin(false);
+        setRole("guest");
         setIsAuthorized(false);
       }
       setLoading(false);
@@ -255,7 +257,7 @@ function AppContent() {
             {isMobile && (
               <Navigation
                 user={user}
-                isAdmin={isAdmin}
+                role={role}
                 isAuthorized={isAuthorized}
                 onNavigate={(path) => navigate(path)}
                 isDrawerOpen={isDrawerOpen}
@@ -275,7 +277,7 @@ function AppContent() {
               }}
             >
               Bait us Salam Booking Portal{" "}
-              {isAdmin && (
+              {role === "admin" && (
                 <VerifiedUser
                   sx={{ color: "secondary.main" }}
                   fontSize="small"
@@ -286,7 +288,7 @@ function AppContent() {
             {!isMobile && (
               <Navigation
                 user={user}
-                isAdmin={isAdmin}
+                role={role}
                 onNavigate={(path) => navigate(path)}
                 sx={{ color: "white" }}
               />
@@ -358,11 +360,7 @@ function AppContent() {
                 path="/"
                 element={
                   user ? (
-                    <BookingForm
-                      user={user}
-                      isAdmin={isAdmin}
-                      bookings={bookings}
-                    />
+                    <BookingForm user={user} role={role} bookings={bookings} />
                   ) : (
                     <Box
                       sx={{
@@ -461,8 +459,8 @@ function AppContent() {
               <Route
                 path="/calendar"
                 element={
-                  isAuthorized ? (
-                    <BookingsCalendar bookings={bookings} isAdmin={isAdmin} />
+                  ["user", "subscriber", "admin"].includes(role) ? (
+                    <BookingsCalendar bookings={bookings} role={role} />
                   ) : (
                     <Navigate to="/" />
                   )
@@ -474,7 +472,7 @@ function AppContent() {
                   user ? (
                     <MyBookings
                       bookings={bookings}
-                      isAdmin={isAdmin}
+                      role={role}
                       user={user} // ✅ Add this
                       loading={loading} // ✅ Add this (if you have a loading state)
                     />
@@ -486,8 +484,8 @@ function AppContent() {
               <Route
                 path="/all-bookings"
                 element={
-                  isAdmin ? (
-                    <AllBookings bookings={bookings} user={user} />
+                  role === "admin" ? (
+                    <AllBookings bookings={bookings} user={user} role={role}/>
                   ) : (
                     <Navigate to="/" />
                   )
@@ -495,7 +493,9 @@ function AppContent() {
               />
               <Route
                 path="/user-manager"
-                element={isAdmin ? <UserManager /> : <Navigate to="/" />}
+                element={
+                  role === "admin" ? <UserManager /> : <Navigate to="/" />
+                }
               />
               <Route path="*" element={<Navigate to="/" />} />
             </Routes>

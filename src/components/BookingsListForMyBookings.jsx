@@ -14,7 +14,7 @@ export default function BookingsListForMyBookings({
   booking,
   handleIndividualAction,
   isActionLoading,
-  isAdmin, // ✅ Added
+  role, // ✅ Added
 }) {
   const theme = useTheme();
 
@@ -26,7 +26,7 @@ export default function BookingsListForMyBookings({
   };
 
   // Only show actions if Pending AND user is admin
-  const displayActions = isAdmin && booking.status === "Pending";
+  const displayActions = role === "admin" && booking.status === "Pending";
 
   return (
     <ListItem

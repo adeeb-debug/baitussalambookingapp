@@ -60,7 +60,7 @@ const events = Object.values(groupedData).map(b => {
 
     return {
       id: b.id || Math.random().toString(),
-      title: `${b.fromTime || ''} | ${locationText} | ${b.eventName || 'Untitled'}`,
+      title: `${b.fromTime || ''} | ${b.eventName || 'Untitled'}`,
       start: formatForCalendar(b.date),
       backgroundColor: STATUS_COLORS[b.status] || STATUS_COLORS.Pending, 
       borderColor: 'transparent',

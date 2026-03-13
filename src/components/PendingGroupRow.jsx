@@ -21,7 +21,7 @@ import {
   InfoOutlined,
   People,
   DirectionsCar,
-  Send, // Added for the email button
+  Send,
   DeleteOutline,
 } from "@mui/icons-material";
 import { useTheme } from "@mui/material/styles";
@@ -32,27 +32,18 @@ export default function PendingGroupRow({
   group,
   handleGroupAction,
   handleIndividualAction,
-  handleSendEmail, // New prop from AdminPanel
+  handleSendEmail,
   handleDeleteBooking,
   individualActionLoadingId,
   groupActionLoadingId,
-  isAdmin,
+  role,
 }) {
   const theme = useTheme();
   const [expanded, setExpanded] = useState(false);
 
-  // LOGIC: Check counts
-  const pendingCount = group.bookings.filter(
-    (b) => b.status === "Pending",
-  ).length;
-
-  // LOGIC: Is every single booking in this group processed?
+  const pendingCount = group.bookings.filter((b) => b.status === "Pending").length;
   const isProcessComplete = group.bookings.every((b) => b.status !== "Pending");
-
-  // LOGIC: Has the user already been emailed?
-  // (Assuming you've updated your database schema as discussed previously)
   const isAlreadyNotified = group.bookings.some((b) => b.userNotified === true);
-
   const isGroupLoading = groupActionLoadingId === group.groupId;
 
   return (
@@ -65,17 +56,11 @@ export default function PendingGroupRow({
         </TableCell>
 
         <TableCell>
-          <Box sx={{ display: "flex", gap: 1 }}>
-            <Typography fontWeight={600}>{group.bookingId}</Typography>
-          </Box>
+          <Typography fontWeight={600}>{group.bookingId}</Typography>
         </TableCell>
 
         <TableCell>
-          <Box sx={{ display: "flex", gap: 1 }}>
-            <Typography fontWeight={600}>
-              {group.eventName || "Unnamed Event"}
-            </Typography>
-          </Box>
+          <Typography fontWeight={600}>{group.eventName || "Unnamed Event"}</Typography>
         </TableCell>
 
         <TableCell>
@@ -88,7 +73,6 @@ export default function PendingGroupRow({
         </TableCell>
 
         <TableCell>{group.requestedByName || "N/A"}</TableCell>
-
         <TableCell>{group.phoneNumber || "N/A"}</TableCell>
 
         <TableCell align="center">
@@ -100,10 +84,11 @@ export default function PendingGroupRow({
         <TableCell align="center">
           {pendingCount} Pending / {group.bookings.length}
         </TableCell>
-        {isAdmin && (
+
+        {/* --- ADMIN ACTION COLUMN --- */}
+        {role === "admin" ? (
           <TableCell>
             <Stack direction="row" spacing={1} alignItems="center">
-              {/* 1. Show Approve/Reject if anything is still Pending */}
               {pendingCount > 0 ? (
                 <Box sx={{ display: "flex", gap: 1 }}>
                   <Button
@@ -126,35 +111,23 @@ export default function PendingGroupRow({
                   </Button>
                 </Box>
               ) : isProcessComplete ? (
-                /* 2. When process is complete, show BOTH status and Button */
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-                  {isAlreadyNotified && (
-                    <Box
-                      sx={{
-                        display: "flex",
-                        alignItems: "center",
-                        color: "success.main",
-                        gap: 0.5,
-                      }}
-                    ></Box>
-                  )}
-
-                  {isAlreadyNotified && (
-                    <Button
-                      size="small"
-                      color="info"
-                      variant="outlined" // Outlined looks better for "secondary" actions like resending
-                      startIcon={<Send />}
-                      onClick={() => handleSendEmail(group)}
-                      disabled={isGroupLoading}
-                    >
-                      {isGroupLoading ? "Sending..." : "Resend Email"}
-                    </Button>
-                  )}
-                </Box>
+                <Button
+                  size="small"
+                  color={isAlreadyNotified ? "info" : "success"}
+                  variant={isAlreadyNotified ? "outlined" : "contained"}
+                  startIcon={<Send />}
+                  onClick={() => handleSendEmail(group)}
+                  disabled={isGroupLoading}
+                  sx={{ whiteSpace: "nowrap" }}
+                >
+                  {isGroupLoading
+                    ? "Sending..."
+                    : isAlreadyNotified
+                    ? "Resend Email"
+                    : "Email Organiser"}
+                </Button>
               ) : null}
 
-              {/* --- DELETE BUTTON (Always visible for Admin) --- */}
               <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
 
               <Tooltip title="Delete Entire Booking">
@@ -173,24 +146,17 @@ export default function PendingGroupRow({
               </Tooltip>
             </Stack>
           </TableCell>
+        ) : (
+          /* Non-admin placeholder to keep table aligned */
+          <TableCell />
         )}
 
         <TableCell align="center">
-          <Typography
-            variant="body2"
-            sx={{ fontWeight: 500, color: "text.secondary" }}
-          >
+          <Typography variant="body2" sx={{ fontWeight: 500, color: "text.secondary" }}>
             {group.bookings[0]?.actionByName || "-"}
           </Typography>
           {group.bookings[0]?.actionAt && (
-            <Typography
-              variant="caption"
-              sx={{
-                display: "block",
-                color: "text.disabled",
-                fontSize: "10px",
-              }}
-            >
+            <Typography variant="caption" sx={{ display: "block", color: "text.disabled", fontSize: "10px" }}>
               {dayjs(group.bookings[0].actionAt).format("DD/MM/YYYY")}
             </Typography>
           )}
@@ -198,7 +164,7 @@ export default function PendingGroupRow({
       </TableRow>
 
       <TableRow>
-        <TableCell colSpan={8} sx={{ p: 0 }}>
+        <TableCell colSpan={10} sx={{ p: 0 }}>
           <Collapse in={expanded}>
             <Box sx={{ p: 2, bgcolor: theme.palette.grey[50] }}>
               <Typography variant="subtitle2">
@@ -212,7 +178,7 @@ export default function PendingGroupRow({
                     booking={booking}
                     handleIndividualAction={handleIndividualAction}
                     isActionLoading={individualActionLoadingId === booking.id}
-                    isAdmin={isAdmin}
+                    role={role}
                   />
                 ))}
               </List>

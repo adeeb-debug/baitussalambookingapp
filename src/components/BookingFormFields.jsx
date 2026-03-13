@@ -19,7 +19,7 @@ export default function BookingFormFields({
   formData,
   setFormData,
   availableLocations,
-  isAdmin,
+  role,
 }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
@@ -36,8 +36,8 @@ export default function BookingFormFields({
 
   const fieldSpacing = isMobile ? 2.5 : 3;
 
-  const minDate = isAdmin ? null : dayjs().add(2, "day");
-  const maxDate = isAdmin ? null : dayjs().add(2, "month");
+  const minDate = role === "admin" ? null : dayjs().add(2, "day");
+  const maxDate = role === "admin" ? null : dayjs().add(2, "month");
 
   const blockTyping = (e) => e.preventDefault();
 
@@ -50,6 +50,7 @@ export default function BookingFormFields({
       {/* Full Name */}
       <TextField
         label="Full Name"
+        placeholder="Your full name only (Do not type your department name here)"
         required
         fullWidth
         sx={{ mb: fieldSpacing }}
@@ -140,7 +141,7 @@ export default function BookingFormFields({
             helperText:
               touched.date && !formData.date
                 ? "Date is required"
-                : isAdmin
+                : role === "admin"
                   ? "Admin Mode: No date restrictions applied"
                   : "Bookings must be made at least 2 days in advance",
             InputProps: { readOnly: true },

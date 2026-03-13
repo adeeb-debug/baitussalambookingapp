@@ -35,11 +35,10 @@ export const VIEWS = {
 
 export default function Navigation({
   user,
-  isAdmin,
-  isAuthorized,
   onNavigate, // Prop from App.js
   isDrawerOpen,
   setIsDrawerOpen,
+  role,
   sx,
 }) {
   const theme = useTheme();
@@ -62,8 +61,8 @@ const navigationItems = [
       },
     ] : []),
 
-// TIER 2: Only users found in your DB
-...((isAuthorized || isAdmin) ? [
+// TIER 2: Only users who exist in your "users" collection (authorized)
+...(["admin", "user", "fyi"].includes(role) ? [
   {
     name: "Schedule Calendar",
     path: "/calendar",
@@ -71,7 +70,7 @@ const navigationItems = [
   },
 ] : []),
     // TIER 3: Only users found in your DB that are Admin
-    ...(isAdmin ? [
+    ...(role === "admin" ? [
       {
         name: "All Bookings",
         path: "/all-bookings",

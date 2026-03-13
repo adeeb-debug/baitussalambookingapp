@@ -33,11 +33,11 @@ import { doc, updateDoc, writeBatch } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
 import { STATUSES } from "../utils/statuses";
 import { groupBookings } from "../utils/groupBookings";
-import { sendUserConfirmation } from "../utils/bookingService";
+import { sendFinalConfirmation } from "../utils/bookingService";
 import PendingGroupRow from "./PendingGroupRow";
 import dayjs from "dayjs";
 
-export default function AllBookings({ bookings = [], loading, user }) {
+export default function AllBookings({ bookings = [], loading, user,role }) {
   // --- Filter SECTION STATES ---
   const [searchParams, setSearchParams] = useSearchParams();
   const [filterStatus, setFilterStatus] = useState(STATUSES.ALL);
@@ -176,13 +176,13 @@ export default function AllBookings({ bookings = [], loading, user }) {
   // --- ADMIN USER DIALOG FOR SENDING EMAIL ---
   const handleSendEmail = async (group) => {
     if (
-      !window.confirm(`Send final decision email to ${group.requestedByEmail}?`)
+      !window.confirm(`Send final decision email to ${group.requestedByEmail} and all subscribers?`)
     )
       return;
     setGroupActionLoadingId(group.groupId);
     try {
       // Pass the 'user' object as the 3rd argument here
-      await sendUserConfirmation(
+      await sendFinalConfirmation(
         db,
         {
           ...group,
@@ -225,7 +225,7 @@ export default function AllBookings({ bookings = [], loading, user }) {
       await batch.commit();
 
       try {
-        await sendUserConfirmation(
+        await sendFinalConfirmation(
           db,
           {
             ...group,
@@ -240,7 +240,7 @@ export default function AllBookings({ bookings = [], loading, user }) {
 
         setSnackbar({
           open: true,
-          message: `Successfully ${action} and email sent to ${group.requestedByEmail}`,
+          message: `Successfully ${action} and email sent to ${group.requestedByEmail}, admins & all subscribers.`,
           severity: "success",
         });
       } catch (emailError) {
@@ -452,7 +452,7 @@ export default function AllBookings({ bookings = [], loading, user }) {
               <TableCell align="center" sx={{ fontWeight: 700 }}>
                 Status
               </TableCell>
-              {/* Ensure this displays if isAdmin is true */}
+              {console.log(role)}
               <TableCell align="center" sx={{ fontWeight: 700 }}>
                 Actions
               </TableCell>
@@ -487,7 +487,7 @@ export default function AllBookings({ bookings = [], loading, user }) {
                   handleSendEmail={handleSendEmail}
                   individualActionLoadingId={individualActionLoadingId}
                   groupActionLoadingId={groupActionLoadingId}
-                  isAdmin={true} // Hardcoded to true because only admins can access this route anyway
+                  role={role}
                 />
               ))
             )}

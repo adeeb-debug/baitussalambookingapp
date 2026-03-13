@@ -10,7 +10,6 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Switch,
   Alert,
   CircularProgress,
   TextField,
@@ -25,6 +24,10 @@ import {
   DialogContent,
   DialogActions,
   Snackbar,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel
 } from "@mui/material";
 import {
   Search as SearchIcon,
@@ -50,6 +53,7 @@ export default function UserManager({ currentUser }) {
   const [newAdminEmail, setNewAdminEmail] = useState("");
   const [newAdminName, setNewAdminName] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [role, setrole] = useState("user"); // Default selection
 
   // Sorting & UI States
   const [orderBy, setOrderBy] = useState("displayName");
@@ -93,7 +97,7 @@ export default function UserManager({ currentUser }) {
     fetchUsers();
   }, [fetchUsers]);
 
-  // Handlers
+  // ADD USER
   const handleAddUser = async (e) => {
     e.preventDefault();
     try {
@@ -103,7 +107,7 @@ export default function UserManager({ currentUser }) {
         {
           displayName: newAdminName,
           email: newAdminEmail.toLowerCase(),
-          isAdmin: true,
+          role: role,
           createdAt: new Date(),
         },
         { merge: true },
@@ -126,6 +130,7 @@ export default function UserManager({ currentUser }) {
     }
   };
 
+  // DELETE USER
   const confirmDelete = async () => {
     if (userToDelete) {
       try {
@@ -153,6 +158,7 @@ export default function UserManager({ currentUser }) {
     setOrderBy(property);
   };
 
+  // USER FILTER
   const filteredUsers = users.filter(
     (user) =>
       user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -176,43 +182,65 @@ export default function UserManager({ currentUser }) {
           color="primary.dark"
           gutterBottom
         >
-          Add Authorized User
+          Add User
         </Typography>
         <form onSubmit={handleAddUser}>
-          <Grid container spacing={2} sx={{ mt: 1 }}>
-            <Grid item xs={12} sm={5}>
-              <TextField
-                fullWidth
-                label="Full Name"
-                size="small"
-                value={newAdminName}
-                onChange={(e) => setNewAdminName(e.target.value)}
-                required
-              />
-            </Grid>
-            <Grid item xs={12} sm={5}>
-              <TextField
-                fullWidth
-                label="Email"
-                size="small"
-                type="email"
-                value={newAdminEmail}
-                onChange={(e) => setNewAdminEmail(e.target.value)}
-                required
-              />
-            </Grid>
-            <Grid item xs={12} sm={2}>
-              <Button
-                fullWidth
-                variant="contained"
-                type="submit"
-                startIcon={<PersonAddIcon />}
-              >
-                Add
-              </Button>
-            </Grid>
-          </Grid>
-        </form>
+  <Grid container spacing={2} sx={{ mt: 1, alignItems: 'center' }}>
+    {/* 1. Full Name */}
+    <Grid item xs={12} sm={4}>
+      <TextField
+        fullWidth
+        label="Full Name"
+        size="small"
+        value={newAdminName}
+        onChange={(e) => setNewAdminName(e.target.value)}
+        required
+      />
+    </Grid>
+
+    {/* 2. Email */}
+    <Grid item xs={12} sm={4}>
+      <TextField
+        fullWidth
+        label="Email"
+        size="small"
+        type="email"
+        value={newAdminEmail}
+        onChange={(e) => setNewAdminEmail(e.target.value)}
+        required
+      />
+    </Grid>
+
+    {/* 3. Role Selection */}
+    <Grid item xs={12} sm={2}>
+      <FormControl fullWidth size="small">
+        <InputLabel>Role</InputLabel>
+        <Select
+          value={role}
+          label="Role"
+          onChange={(e) => setrole(e.target.value)}
+        >
+          <MenuItem value="user">User</MenuItem>
+          <MenuItem value="admin">Admin</MenuItem>
+          <MenuItem value="subscriber">Subscriber</MenuItem>
+        </Select>
+      </FormControl>
+    </Grid>
+
+    {/* 4. Submit Button */}
+    <Grid item xs={12} sm={2}>
+      <Button
+        fullWidth
+        variant="contained"
+        type="submit"
+        startIcon={<PersonAddIcon />}
+        sx={{ height: '40px' }} // Matches TextField height
+      >
+        Add
+      </Button>
+    </Grid>
+  </Grid>
+</form>
       </Paper>
 
       {/* Existing Users Table */}
@@ -266,7 +294,7 @@ export default function UserManager({ currentUser }) {
                       Email
                     </TableSortLabel>
                   </TableCell>
-                  <TableCell align="center">Admin Status</TableCell>
+                  <TableCell align="center">Role</TableCell>
                   <TableCell align="right">Actions</TableCell>
                 </TableRow>
               </TableHead>
@@ -276,31 +304,44 @@ export default function UserManager({ currentUser }) {
                     <TableCell>{user.displayName || "N/A"}</TableCell>
                     <TableCell>{user.email}</TableCell>
                     <TableCell align="center">
-                      <Switch
-                        checked={user.isAdmin || false} // true if admin, false if viewer
-                        onChange={async () => {
-                          const newStatus = !user.isAdmin; // toggle
-                          const userRef = doc(db, "users", user.id);
-                          await updateDoc(userRef, { isAdmin: newStatus }); // update in Firestore
+  <Select
+    value={user.role || "user"} // Default to 'user'
+    size="small"
+    onChange={async (e) => {
+      const newRole = e.target.value;
+      const userRef = doc(db, "users", user.id);
 
-                          // Update local state
-                          setUsers(
-                            users.map((u) =>
-                              u.id === user.id
-                                ? { ...u, isAdmin: newStatus }
-                                : u,
-                            ),
-                          );
+      try {
+        // Update in Firestore (we update 'role' and keep 'isAdmin' for safety/legacy)
+        await updateDoc(userRef, { 
+          role: newRole,
+          isAdmin: newRole === "admin" 
+        });
 
-                          setSnackbar({
-                            open: true,
-                            message: "Role updated!",
-                            severity: "success",
-                          });
-                        }}
-                        disabled={user.email === auth.currentUser?.email} // cannot toggle self
-                      />
-                    </TableCell>
+        // Update local state
+        setUsers(
+          users.map((u) =>
+            u.id === user.id ? { ...u, role: newRole, isAdmin: newRole === "admin" } : u
+          )
+        );
+
+        setSnackbar({
+          open: true,
+          message: `Role updated to ${newRole}!`,
+          severity: "success",
+        });
+      } catch (error) {
+        console.error("Error updating role:", error);
+      }
+    }}
+    disabled={user.email === auth.currentUser?.email} // Cannot change own role
+    sx={{ minWidth: 120 }}
+  >
+    <MenuItem value="user">User</MenuItem>
+    <MenuItem value="admin">Admin</MenuItem>
+    <MenuItem value="subscriber">Subscriber</MenuItem>
+  </Select>
+</TableCell>
                     <TableCell align="right">
                       <IconButton
                         color="error"
