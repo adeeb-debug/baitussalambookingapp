@@ -477,7 +477,8 @@ const subscriberEmails = userSnap.docs
 
     // 3. Queue Email to Subscribers (using BCC)
     await addDoc(collection(db, "mail"), {
-      to: subscriberEmails,
+      to:"bookings.baitussalam@gmail.com",
+      bcc:subscriberEmails,
       message: {
         subject: `[Subscriber Update] Booking Finalised: ${group.bookingId} - ${group.eventName}`,
         html: subscriberHtml,
