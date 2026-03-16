@@ -265,24 +265,28 @@ export default function BookingFormFields({
         </FormHelperText>
       </FormControl>
 
-      {/* Event Name */}
-      <TextField
-        label="Event Name"
-        required
-        fullWidth
-        multiline
-        rows={isMobile ? 3 : 2}
-        sx={{ mb: fieldSpacing }}
-        value={formData.eventName}
-        onChange={(e) => handleChange("eventName")(e.target.value)}
-        onBlur={() => markTouched("eventName")}
-        error={touched.eventName && !formData.eventName}
-        helperText={
-          touched.eventName && !formData.eventName
-            ? "Event name is required"
-            : undefined
-        }
-      />
+<TextField
+  label="Event Name"
+  required
+  fullWidth
+  multiline
+  rows={isMobile ? 3 : 2}
+  sx={{ mb: fieldSpacing }}
+  value={formData.eventName || ""} // Ensures value is never undefined
+  onChange={(e) => handleChange("eventName")(e.target.value)}
+  onBlur={() => markTouched("eventName")}
+  inputProps={{ maxLength: 20 }}
+  
+  // 1. Error prop must be true for the field to turn red
+  error={touched.eventName && (!formData.eventName || formData.eventName.trim() === "")}
+  
+  // 2. Prioritize the error message over the character count
+  helperText={
+    touched.eventName && (!formData.eventName || formData.eventName.trim() === "")
+      ? "Event name is required"
+      : `${formData.eventName?.length || 0}/20`
+  }
+/>
 
       {/* People / Cars */}
       <Box sx={{ display: "flex", gap: 2, mb: isMobile ? 2 : 4 }}>
