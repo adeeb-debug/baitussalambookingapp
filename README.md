@@ -1,6 +1,86 @@
-# Getting Started with Create React App
+# Baitus Salam Booking Portal
+[![Ask DeepWiki](https://devin.ai/assets/askdeepwiki.png)](https://deepwiki.com/adeeb-debug/baitussalambookingapp)
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+This is a web application for requesting and managing facility bookings at the Baitus Salam Mosque. Built with React and Firebase, it provides a seamless experience for both users requesting space and administrators managing the bookings.
+
+## Key Features
+
+*   **User Authentication:** Secure sign-in using Google or Microsoft accounts.
+*   **Role-Based Access:** Differentiated views and permissions for regular users, subscribers, and administrators.
+*   **Dynamic Booking Form:** An intuitive form for requesting bookings, with real-time validation and location availability checks based on the selected date and time.
+*   **Booking Management:**
+    *   **Admin Dashboard:** A comprehensive list of all bookings with filtering (by status, location, date) and search functionality. Admins can approve, reject, or delete requests.
+    *   **My Bookings:** A personalized page for users to track the status of their own booking requests.
+*   **Calendar View:** A visual calendar displaying all approved and pending bookings for easy scheduling reference.
+*   **User Management:** An admin-only panel to add, remove, and manage user roles (Admin, User, Subscriber).
+*   **Automated Email Notifications:** The system automatically sends emails for:
+    *   Booking request acknowledgements to users.
+    *   New booking alerts to administrators.
+    *   Final decision (approved/rejected) notifications to the user and relevant subscribers.
+
+## Technology Stack
+
+*   **Frontend:**
+    *   React
+    *   Material-UI (MUI) for component styling
+    *   React Router for navigation
+    *   FullCalendar for the bookings calendar view
+    *   Day.js for date and time manipulation
+*   **Backend & Database:**
+    *   Firebase Authentication
+    *   Firestore (NoSQL Database)
+    *   Firebase Hosting
+*   **Email Service:**
+    *   Firebase "Trigger Email" Extension
+
+## Getting Started
+
+To get a local copy up and running, follow these simple steps.
+
+### Prerequisites
+
+*   Node.js and npm (or yarn) installed on your machine.
+*   A Firebase project.
+
+### Installation & Setup
+
+1.  **Clone the repository:**
+    ```sh
+    git clone https://github.com/adeeb-debug/baitussalambookingapp.git
+    cd baitussalambookingapp
+    ```
+
+2.  **Install NPM packages:**
+    ```sh
+    npm install
+    ```
+
+3.  **Set up Firebase credentials:**
+    *   Create a `.env` file in the root of the project.
+    *   Add your Firebase project's configuration keys to the `.env` file. You can find these in your Firebase project settings.
+
+    ```.env
+    REACT_APP_FIREBASE_API_KEY=your_api_key
+    REACT_APP_FIREBASE_AUTH_DOMAIN=your_auth_domain
+    REACT_APP_FIREBASE_PROJECT_ID=your_project_id
+    REACT_APP_FIREBASE_STORAGE_BUCKET=your_storage_bucket
+    REACT_APP_FIREBASE_MESSAGING_SENDER_ID=your_messaging_sender_id
+    REACT_APP_FIREBASE_APP_ID=your_app_id
+    ```
+
+4.  **Configure Firebase Backend:**
+    *   In your Firebase project, enable **Authentication** with the **Google** and **Microsoft** sign-in providers.
+    *   Set up a **Firestore Database**.
+    *   Deploy the Firestore rules and indexes located in the root of this repository:
+        *   `firestore.rules`
+        *   `firestore.indexes.json`
+    *   Install the [Trigger Email](https://firebase.google.com/products/extensions/firebase-mail) extension to enable automated email notifications. Configure it to watch the `mail` collection.
+
+5.  **Run the application:**
+    ```sh
+    npm start
+    ```
+    The app will open in development mode at `http://localhost:3000`.
 
 ## Available Scripts
 
@@ -8,63 +88,22 @@ In the project directory, you can run:
 
 ### `npm start`
 
-Runs the app in the development mode.\
+Runs the app in development mode.
 Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
-
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
 
 ### `npm test`
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+Launches the test runner in interactive watch mode.
 
 ### `npm run build`
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+Builds the app for production to the `build` folder. It correctly bundles React in production mode and optimizes the build for the best performance. Your app is ready to be deployed!
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+## Firebase Data Structure
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+The application relies on the following Firestore collections:
 
-### `npm run eject`
-
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
-
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
-
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
-
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+*   `bookings`: Stores individual booking records for each requested location. Documents in this collection are grouped by a `groupId`.
+*   `users`: Stores user information, including their email and role (`admin`, `user`, `subscriber`).
+*   `mail`: Watched by the Trigger Email extension. Adding a document to this collection sends an email.
+*   `counters`: Used to generate sequential, human-readable booking IDs (e.g., `2024-0001`).
