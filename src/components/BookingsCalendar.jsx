@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import { 
@@ -35,38 +35,37 @@ export default function BookingsCalendar({ bookings }) {
   // State for the Detail Dialog
   const [selectedEvent, setSelectedEvent] = useState(null);
 
-  const groupedData = (bookings || []).reduce((acc, current) => {
-  const key = current.groupId; // This links your multiple locations together
+// 1. "Explode" the bookings into individual occurrences
+const events = useMemo(() => {
+  const allEvents = [];
 
-  if (!acc[key]) {
-    // If this is the first time seeing this groupId, initialize it
-    acc[key] = {
-      ...current,
-      // Ensure locations is always an array for merging
-      allLocations: Array.isArray(current.locations) ? [...current.locations] : [current.location]
-    };
-  } else {
-    // If groupId exists, just merge new locations into the existing entry
-    const newLocs = Array.isArray(current.locations) ? current.locations : [current.location];
-    acc[key].allLocations = [...new Set([...acc[key].allLocations, ...newLocs])];
-  }
-  
-  return acc;
-}, {});
+  (bookings || []).forEach((b) => {
+    // Determine which dates to show: use allDates if it exists, otherwise fallback to single date
+    const datesToShow = b.allDates && b.allDates.length > 0 ? b.allDates : [b.date];
+    const locationText = Array.isArray(b.locations) 
+      ? b.locations.filter(Boolean).join(", ") 
+      : (b.location || "");
 
-// 2. Map the grouped objects to FullCalendar events
-const events = Object.values(groupedData).map(b => {
-  const locationText = b.allLocations.filter(Boolean).join(", ");
-
-    return {
-      id: b.id || Math.random().toString(),
-      title: `${b.fromTime || ''} | ${b.eventName || 'Untitled'}`,
-      start: formatForCalendar(b.date),
-      backgroundColor: STATUS_COLORS[b.status] || STATUS_COLORS.Pending, 
-      borderColor: 'transparent',
-      extendedProps: { ...b, locationText } // Pass normalized location text to popup
-    };
+    datesToShow.forEach((occurrenceDate) => {
+      allEvents.push({
+        // Unique ID for each occurrence on the calendar
+        id: `${b.bookingId || b.id}-${occurrenceDate}`, 
+        title: `${b.fromTime || ''} | ${b.eventName || 'Untitled'}`,
+        start: formatForCalendar(occurrenceDate),
+        backgroundColor: STATUS_COLORS[b.status] || STATUS_COLORS.Pending,
+        borderColor: 'transparent',
+        // Pass all data to the popup
+        extendedProps: { 
+          ...b, 
+          occurrenceDate, // Useful if you want to show the specific date in the popup
+          locationText 
+        }
+      });
+    });
   });
+
+  return allEvents;
+}, [bookings]);
 
   const handleEventClick = (info) => {
     setSelectedEvent(info.event.extendedProps);

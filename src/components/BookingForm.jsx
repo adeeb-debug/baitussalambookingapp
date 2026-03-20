@@ -20,12 +20,13 @@ import { LOCATIONS } from "../utils/constants";
 import { overlaps } from "../utils/timeUtils";
 import {
   sendAdminNotification,
-  submitBookingBatch,
   sendUserAcknowledgement,
 } from "../utils/bookingService";
 import BookingFormFields from "./BookingFormFields";
+import { generateRecurringDates } from "../utils/dateUtils";
+import { setDoc, doc, getDoc } from "firebase/firestore";
 
-export default function BookingForm({ user,role, bookings }) {
+export default function BookingForm({ user, role, bookings }) {
   const INITIAL_FORM_DATA = (user) => ({
     fullName: "",
     phoneNumber: "",
@@ -37,9 +38,10 @@ export default function BookingForm({ user,role, bookings }) {
     eventName: "",
     expectedPeople: "",
     expectedCars: "",
+    isRecurring: false,
+    recurrenceType: "weekly",
+    endDate: "",
   });
-
-  
 
   const [formData, setFormData] = useState(INITIAL_FORM_DATA(user));
   const [availableLocations, setAvailableLocations] = useState(LOCATIONS);
@@ -47,10 +49,11 @@ export default function BookingForm({ user,role, bookings }) {
   const [status, setStatus] = useState({ error: "", success: false });
   const [acceptedDisclaimer, setAcceptedDisclaimer] = useState(false);
   const [successPopupOpen, setSuccessPopupOpen] = useState(false);
+  const [conflictedLocations, setConflictedLocations] = useState([]);
 
   /** 🔐 CENTRAL VALIDATION */
   const validateForm = () => {
-    return (
+    const baseValid =
       formData.fullName &&
       formData.phoneNumber &&
       formData.jamaat &&
@@ -60,117 +63,193 @@ export default function BookingForm({ user,role, bookings }) {
       formData.locations.length > 0 &&
       formData.eventName &&
       formData.expectedPeople &&
-      formData.expectedCars
-    );
+      formData.expectedCars;
+
+    if (formData.isRecurring) {
+      return baseValid && formData.endDate; // Ensure end date is picked if recurring
+    }
+    return baseValid;
   };
 
-/** 📍 LOCATION AVAILABILITY */
-useEffect(() => {
-  if (!formData.date || !formData.fromTime || !formData.toTime || !bookings) return;
+  /** 📍 UPDATED LOCATION AVAILABILITY (with Detail) */
+  useEffect(() => {
+    if (!formData.date || !formData.fromTime || !formData.toTime || !bookings)
+      return;
 
-  const filtered = LOCATIONS.filter((loc) => {
-    // We want to find if ANY existing booking blocks this specific 'loc'
-    const isBlocked = bookings.some((b) => {
-      // 1. Match the Date
-      const isSameDay = dayjs(b.date).isSame(dayjs(formData.date), 'day');
-      if (!isSameDay) return false;
-      console.log(isSameDay)
+    const requestedDates =
+      formData.isRecurring && formData.endDate
+        ? generateRecurringDates(
+            formData.date,
+            formData.endDate,
+            formData.recurrenceType,
+          )
+        : [formData.date];
 
-      // 2. Match the Location (Checking both singular and plural fields)
-      const locationMatch = 
-        b.location === loc.name || 
-        (Array.isArray(b.locations) && b.locations.includes(loc.name));
-      
-      if (!locationMatch) return false;
+    const conflicts = []; // Store objects: { location, eventName, dates: [] }
 
-      // 3. Match the Status
-      if (b.status === "Cancelled" || b.status === "Rejected") return false;
+    bookings.forEach((b) => {
+      if (b.status === "Cancelled" || b.status === "Rejected") return;
 
-      // 4. Match the Time (Overlap)
+      // A. Check Date Overlap
+      const existingDates = b.allDates || [b.date];
+      const clashingDates = requestedDates.filter((d) =>
+        existingDates.includes(d),
+      );
+      if (clashingDates.length === 0) return;
+
+      // B. Check Time Overlap
       const REFERENCE_DATE = "2026-01-01";
-      return overlaps(
+      const isTimeClash = overlaps(
         dayjs(`${REFERENCE_DATE}T${formData.fromTime}`).toDate(),
         dayjs(`${REFERENCE_DATE}T${formData.toTime}`).toDate(),
         dayjs(`${REFERENCE_DATE}T${b.fromTime}`).toDate(),
-        dayjs(`${REFERENCE_DATE}T${b.toTime}`).toDate()
+        dayjs(`${REFERENCE_DATE}T${b.toTime}`).toDate(),
       );
+
+      // C. Record the specific details
+      if (isTimeClash) {
+        const locs = Array.isArray(b.locations) ? b.locations : [b.location];
+        locs.forEach((locName) => {
+          conflicts.push({
+            location: locName,
+            eventName: b.eventName,
+            dates: clashingDates, // These are the specific days it's blocked
+          });
+        });
+      }
     });
 
-    return !isBlocked; // Keep the location only if no booking blocks it
-  });
+    // Filter available locations (just the names for the dropdown)
+    const blockedNames = conflicts.map((c) => c.location);
+    const filtered = LOCATIONS.filter(
+      (loc) => !blockedNames.includes(loc.name),
+    );
 
-  setAvailableLocations(filtered);
-}, [formData.date, formData.fromTime, formData.toTime, bookings]);
-
+    setAvailableLocations(filtered);
+    setConflictedLocations(conflicts); // Now storing full objects
+  }, [
+    formData.date,
+    formData.endDate,
+    formData.isRecurring,
+    formData.recurrenceType,
+    formData.fromTime,
+    formData.toTime,
+    bookings,
+  ]);
   /** 🚀 SUBMIT */
-  const handleSend = async () => {
-    setStatus({ error: "", success: false });
+  /** 🚀 SUBMIT */
+const handleSend = async () => {
+  setStatus({ error: "", success: false });
 
-    if (!validateForm()) {
-      setStatus({
-        error: "Please complete all required fields before submitting.",
-        success: false,
-      });
-      return;
+  // 1. 🛑 CONFLICT GATEKEEPER
+  // Filter the conflicts list to only see ones affecting the user's current selection
+  const activeConflicts = conflictedLocations.filter((c) =>
+    formData.locations.includes(c.location)
+  );
+
+  if (activeConflicts.length > 0) {
+    // Generate a detailed error string
+    const conflictDetails = activeConflicts
+      .map((c) => {
+        const dateList = c.dates.map((d) => dayjs(d).format("MMM D")).join(", ");
+        return `${c.location} is booked for "${c.eventName}" on ${dateList}`;
+      })
+      .join(" | ");
+
+    setStatus({
+      error: `Booking Conflict: ${conflictDetails}. Please adjust your dates or locations.`,
+      success: false,
+    });
+
+    // Scroll to top so the user sees the red Alert
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    return; // Kill the process
+  }
+
+  // 2. Standard Validation
+  if (!validateForm() || !acceptedDisclaimer) {
+    setStatus({
+      error: "Please complete all fields and accept the disclaimer.",
+      success: false,
+    });
+    return;
+  }
+
+  setIsSubmitting(true);
+
+  const currentYear = dayjs().year(); // 2026
+  const datesToBook = formData.isRecurring
+    ? generateRecurringDates(
+        formData.date,
+        formData.endDate,
+        formData.recurrenceType
+      )
+    : [formData.date];
+
+  try {
+    // 3. Get sequential ID
+    const counterRef = doc(db, "counters", `bookings_${currentYear}`);
+    const counterSnap = await getDoc(counterRef);
+
+    let nextNum = 1;
+    if (counterSnap.exists()) {
+      nextNum = counterSnap.data().lastNumber + 1;
     }
 
-    if (!acceptedDisclaimer) {
-      setStatus({
-        error:
-          "You must accept the responsibility disclaimer before submitting.",
-        success: false,
-      });
-      return;
-    }
+    const formattedNum = String(nextNum).padStart(4, "0");
+    const bId = `${currentYear}-${formattedNum}`;
 
-    setIsSubmitting(true);
+    // 4. Create Doc ID and Payload
+    const customDocId = `${bId}`;
+    const newDocRef = doc(db, "bookings", customDocId);
 
-    // Normalize the date to ISO format before sending to Firestore
-  const normalizedData = {
-    ...formData,
-    date: dayjs(formData.date).format("YYYY-MM-DD") 
-  };
-    try {
-      const bookingCreated = await submitBookingBatch(
-        db,
-        user,
-        normalizedData,
-        formData.locations
-      );
+    const bookingPayload = {
+      ...formData,
+      bookingId: bId,
+      status: "Pending",
+      requestedByEmail: user.email,
+      createdAt: new Date().toISOString(),
+      allDates: datesToBook,
+      date: datesToBook[0],
+      userNotified: false,
+      actionByEmail: "",
+      actionByName: "",
+      actionAt: null,
+      approverNote: "",
+    };
 
-      if (!bookingCreated || bookingCreated.length === 0) {
-        throw new Error("Booking could not be created");
-      }
+    // 5. Save to Firestore
+    await setDoc(newDocRef, bookingPayload);
+    await setDoc(
+      counterRef,
+      {
+        lastNumber: nextNum,
+        year: currentYear,
+      },
+      { merge: true }
+    );
 
-      await sendAdminNotification(
-        db,
-        {
-          ...formData,
-          email: user.email,
-          timeRange: `${formData.fromTime}-${formData.toTime}`,
-        },
-        bookingCreated.bookingId
-      );
+    // 6. Notifications
+    await sendAdminNotification(db, bookingPayload, bId);
+    await sendUserAcknowledgement(
+      db,
+      user.email,
+      formData.fullName,
+      bookingPayload,
+      bId
+    );
 
-      await sendUserAcknowledgement(
-        db,
-        user.email,
-        formData.fullName,
-        formData,
-        bookingCreated.bookingId
-      );
-
-      setSuccessPopupOpen(true);
-      setFormData(INITIAL_FORM_DATA(user));
-      setAcceptedDisclaimer(false);
-      setAvailableLocations(LOCATIONS);
-    } catch (e) {
-      setStatus({ error: e.message, success: false });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
+    setSuccessPopupOpen(true);
+    setFormData(INITIAL_FORM_DATA(user));
+    setAcceptedDisclaimer(false);
+    setConflictedLocations([]);
+  } catch (e) {
+    console.error("Submission error:", e);
+    setStatus({ error: e.message, success: false });
+  } finally {
+    setIsSubmitting(false);
+  }
+};
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
       <Box>
@@ -187,13 +266,12 @@ useEffect(() => {
               setFormData={setFormData}
               availableLocations={availableLocations}
               role={role}
+              conflictedLocations={conflictedLocations}
             />
 
             <Alert severity="info" sx={{ my: 2 }}>
               <ul style={{ margin: 0, paddingLeft: "1.25rem" }}>
-                <li>
-                  Jamaat Jalsa or meetings with Ameer Sb take precedence.
-                </li>
+                <li>Jamaat Jalsa or meetings with Ameer Sb take precedence.</li>
                 <li>You are responsible for cleaning after the event.</li>
                 <li>No events on Fridays before 3:00 PM.</li>
               </ul>
@@ -217,9 +295,7 @@ useEffect(() => {
               disabled={isSubmitting}
               onClick={handleSend}
               startIcon={
-                isSubmitting && (
-                  <CircularProgress size={20} color="inherit" />
-                )
+                isSubmitting && <CircularProgress size={20} color="inherit" />
               }
             >
               {isSubmitting ? "Submitting..." : "Submit Request"}
@@ -243,7 +319,10 @@ useEffect(() => {
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setSuccessPopupOpen(false)} variant="contained">
+          <Button
+            onClick={() => setSuccessPopupOpen(false)}
+            variant="contained"
+          >
             OK
           </Button>
         </DialogActions>

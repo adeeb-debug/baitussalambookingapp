@@ -1,6 +1,6 @@
 // src/components/AllBookings.js
 import React, { useState, useMemo, useEffect } from "react";
-import { useSearchParams } from "react-router-dom"; // Add this hook
+import { useSearchParams } from "react-router-dom";
 import {
   Box,
   Typography,
@@ -21,7 +21,6 @@ import {
   TextField,
   InputAdornment,
   Button,
-  Stack,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -29,7 +28,7 @@ import {
   Snackbar,
 } from "@mui/material";
 import { FilterList, Search, RestartAlt } from "@mui/icons-material";
-import { doc, updateDoc, writeBatch } from "firebase/firestore";
+import { doc, updateDoc, deleteDoc } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
 import { STATUSES } from "../utils/statuses";
 import { groupBookings } from "../utils/groupBookings";
@@ -37,8 +36,7 @@ import { sendFinalConfirmation } from "../utils/bookingService";
 import PendingGroupRow from "./PendingGroupRow";
 import dayjs from "dayjs";
 
-export default function AllBookings({ bookings = [], loading, user,role }) {
-  // --- Filter SECTION STATES ---
+export default function AllBookings({ bookings = [], loading, user, role }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [filterStatus, setFilterStatus] = useState(STATUSES.ALL);
   const [filterLocation, setFilterLocation] = useState(STATUSES.ALL);
@@ -48,7 +46,7 @@ export default function AllBookings({ bookings = [], loading, user,role }) {
   const [snackbar, setSnackbar] = useState({
     open: false,
     message: "",
-    severity: "success", // "success" or "error"
+    severity: "success",
   });
 
   const handleCloseSnackbar = () => setSnackbar({ ...snackbar, open: false });
@@ -58,70 +56,25 @@ export default function AllBookings({ bookings = [], loading, user,role }) {
   const [groupToDelete, setGroupToDelete] = useState(null);
 
   // --- LOADING STATES ---
-  const [individualActionLoadingId, setIndividualActionLoadingId] =
-    useState(null);
+  const [individualActionLoadingId, setIndividualActionLoadingId] = useState(null);
   const [groupActionLoadingId, setGroupActionLoadingId] = useState(null);
 
-  // --Approver's Note--
+  // --- ACTION MODAL ---
   const [noteModal, setNoteModal] = useState({
     open: false,
-    action: "", // "Approved" or "Rejected"
-    targetType: "", // "group" or "individual"
-    data: null, // Stores the group object or bookingId
+    action: "",
+    data: null, // The booking/group object
     note: "",
   });
 
-  const handleConfirmDecision = async () => {
-    const { action, targetType, data, note } = noteModal;
-
-    if (targetType === "group") {
-      await handleGroupAction(data, action, note); // Pass note to your batch function
-    } else {
-      await handleIndividualAction(data, action, note); // Pass note to individual function
-    }
-
-    setNoteModal({ ...noteModal, open: false, note: "" }); // Reset
-  };
-
-  // 2. Capture the ID from the URL on load
   useEffect(() => {
     const idFromUrl = searchParams.get("id");
     if (idFromUrl) {
       setSearchQuery(idFromUrl);
-      // Optional: Set status to ALL to make sure it's found even if not pending
       setFilterStatus(STATUSES.ALL);
     }
   }, [searchParams]);
 
-  // --- DELETE BOOKING LOGIC ---
-  const confirmDelete = (group) => {
-    setGroupToDelete(group);
-    setDeleteDialogOpen(true);
-  };
-
-  const handleExecuteDelete = async () => {
-    if (!groupToDelete) return;
-
-    setDeleteDialogOpen(false);
-    setIndividualActionLoadingId(groupToDelete.groupId);
-
-    try {
-      const batch = writeBatch(db);
-      groupToDelete.bookings.forEach((booking) => {
-        const docRef = doc(db, "bookings", booking.id);
-        batch.delete(docRef);
-      });
-      await batch.commit();
-    } catch (error) {
-      console.error("Delete failed:", error);
-      alert("Delete failed. Check console.");
-    } finally {
-      setIndividualActionLoadingId(null);
-      setGroupToDelete(null);
-    }
-  };
-
-  // --- RESET FILTERS ---
   const resetFilters = () => {
     setFilterStatus(STATUSES.ALL);
     setFilterLocation(STATUSES.ALL);
@@ -131,360 +84,165 @@ export default function AllBookings({ bookings = [], loading, user,role }) {
     setSearchParams({});
   };
 
-  // --- GRAB LOCATIONS TO BE USED IN FILTER LOGIC ---
   const uniqueLocations = useMemo(() => {
-    const locations = new Set(bookings.map((b) => b.location).filter(Boolean));
+    const locations = new Set(bookings.flatMap((b) => b.locations || []));
     return [STATUSES.ALL, ...Array.from(locations).sort()];
   }, [bookings]);
 
-  // --- FILTER SECTION LOGIC ---
   const filteredAndGroupedBookings = useMemo(() => {
     let result = bookings.filter((b) => {
-      const matchesStatus =
-        filterStatus === STATUSES.ALL || b.status === filterStatus;
-      if (filterStatus === STATUSES.PENDING && b.userNotified) return false;
+      const matchesStatus = filterStatus === STATUSES.ALL || b.status === filterStatus;
       if (!matchesStatus) return false;
 
       const search = searchQuery.toLowerCase();
       const matchesSearch =
-        b.bookingId.toLowerCase().includes(search) ||
+        (b.bookingId && b.bookingId.toLowerCase().includes(search)) ||
         b.eventName?.toLowerCase().includes(search) ||
-        b.requestedByName?.toLowerCase().includes(search) ||
-        b.requestedByEmail?.toLowerCase().includes(search);
+        b.fullName?.toLowerCase().includes(search) ||
+        b.requestedByName?.toLowerCase().includes(search);
+      
       if (!matchesSearch) return false;
+
+      // Location Filter (checking if the array contains the selected location)
+      if (filterLocation !== STATUSES.ALL && !b.locations?.includes(filterLocation)) return false;
 
       const bookingDateObj = dayjs(b.date);
       if (bookingDateObj.isValid()) {
-        if (startDate) {
-          // Start of the selected day (00:00:00)
-          const startBound = dayjs(startDate).startOf("day");
-          if (bookingDateObj.isBefore(startBound)) return false;
-        }
-
-        if (endDate) {
-          // End of the selected day (23:59:59)
-          const endBound = dayjs(endDate).endOf("day");
-          if (bookingDateObj.isAfter(endBound)) return false;
-        }
+        if (startDate && bookingDateObj.isBefore(dayjs(startDate).startOf("day"))) return false;
+        if (endDate && bookingDateObj.isAfter(dayjs(endDate).endOf("day"))) return false;
       }
       return true;
     });
 
+    // We still use groupBookings to keep the structure PendingGroupRow expects
     return groupBookings(result, filterLocation);
   }, [bookings, filterStatus, filterLocation, searchQuery, startDate, endDate]);
 
-  // --- ADMIN USER DIALOG FOR SENDING EMAIL ---
-  const handleSendEmail = async (group) => {
-    if (
-      !window.confirm(`Send final decision email to ${group.requestedByEmail} and all subscribers?`)
-    )
-      return;
-    setGroupActionLoadingId(group.groupId);
-    try {
-      // Pass the 'user' object as the 3rd argument here
-      await sendFinalConfirmation(
-        db,
-        {
-          ...group,
-          eventName: group.eventName,
-          requestedByEmail: group.requestedByEmail,
-        },
-        user,
-      );
-
-      alert("Success: User has been notified.");
-    } catch (err) {
-      console.error(err);
-      alert("Failed to send email.");
-    } finally {
-      setGroupActionLoadingId(null);
-    }
+  const handleConfirmDecision = async () => {
+    const { action, data, note } = noteModal;
+    await handleAction(data, action, note);
+    setNoteModal({ ...noteModal, open: false, note: "" });
   };
 
-  //--APPROVE/REJECT A COMPLETE BOOKING--
-  const handleGroupAction = async (group, action, note) => {
-    const pendingBookings = group.bookings.filter(
-      (b) => b.status === "Pending",
-    );
-    if (pendingBookings.length === 0) return;
+ const handleAction = async (group, action, note) => {
+  // Use bookingId for the loading spinner as it's the human reference
+  setGroupActionLoadingId(group.bookingId); 
+  
+  try {
+    // CRITICAL: We must use the full Firestore Document ID 
+    // This is the "2026-03-28_2026-0018" string
+    const documentId = group.bookingId; 
+    console.log(documentId)
+    const ref = doc(db, "bookings", documentId);
+    
+    const updateData = {
+      status: action,
+      approverNote: note || "",
+      actionByEmail: user?.email || "System",
+      actionByName: user?.displayName || user?.email || "Admin",
+      actionAt: new Date().toISOString(),
+      userNotified: true,
+    };
 
-    setGroupActionLoadingId(group.groupId);
+    await updateDoc(ref, updateData);
+
+    // Pass the merged data to the email service
+    await sendFinalConfirmation(db, { ...group, ...updateData }, user);
+
+    setSnackbar({
+      open: true,
+      message: `Successfully ${action} and organiser notified.`,
+      severity: "success",
+    });
+  } catch (err) {
+    console.error("Update error:", err);
+    setSnackbar({ open: true, message: "Action failed", severity: "error" });
+  } finally {
+    setGroupActionLoadingId(null);
+  }
+};
+  const handleExecuteDelete = async () => {
+    if (!groupToDelete) return;
+    setDeleteDialogOpen(false);
+    setIndividualActionLoadingId(groupToDelete.groupId);
+
     try {
-      const batch = writeBatch(db);
-      pendingBookings.forEach((booking) => {
-        const ref = doc(db, "bookings", booking.id);
-        batch.update(ref, {
-          status: action, // Use the 'user' prop directly here
-          approverNote: note || "",
-          actionByEmail: user?.email,
-          actionByName: user?.displayName || user?.email,
-          actionAt: new Date().toISOString(),
-          userNotified: true,
-        });
-      });
-      await batch.commit();
-
-      try {
-        await sendFinalConfirmation(
-          db,
-          {
-            ...group,
-            bookings: group.bookings.map((b) => ({
-              ...b,
-              status: b.status === "Pending" ? action : b.status, // Update pending ones in the local object
-              approverNote: note || "",
-            })),
-          },
-          user,
-        );
-
-        setSnackbar({
-          open: true,
-          message: `Successfully ${action} and email sent to ${group.requestedByEmail}, admins & all subscribers.`,
-          severity: "success",
-        });
-      } catch (emailError) {
-        console.error("Database updated, but email failed:", emailError);
-        // We don't want to alert "Failed to update group" because the DB actually succeeded
-      }
-    } catch (err) {
-      console.error(err);
-      alert("Failed to update group");
-    } finally {
-      setGroupActionLoadingId(null);
-    }
-  };
-
-  //--APPROVE/REJECT ONE SINGLE LOCATION--
-  const handleIndividualAction = async (bookingId, action, note) => {
-    setIndividualActionLoadingId(bookingId);
-    try {
-      const ref = doc(db, "bookings", bookingId);
-      await updateDoc(ref, {
-        status: action,
-        approverNote: note || "", // ✅ ADDED: Saves the specific note for this room
-        actionByEmail: user?.email,
-        actionByName: user?.displayName || user?.email,
-        actionAt: new Date().toISOString(),
-      });
-    } catch (err) {
-      console.error(err);
-      alert("Update failed");
+      await deleteDoc(doc(db, "bookings", groupToDelete.groupId));
+      setSnackbar({ open: true, message: "Booking deleted successfully", severity: "success" });
+    } catch (error) {
+      console.error(error);
+      setSnackbar({ open: true, message: "Delete failed", severity: "error" });
     } finally {
       setIndividualActionLoadingId(null);
+      setGroupToDelete(null);
     }
   };
 
-  if (loading)
-    return (
-      <Box sx={{ display: "flex", justifyContent: "center", p: 10 }}>
-        <CircularProgress />
-      </Box>
-    );
+  if (loading) return (
+    <Box sx={{ display: "flex", justifyContent: "center", p: 10 }}>
+      <CircularProgress />
+    </Box>
+  );
 
-  const openNoteModal = (targetType, data, action) => {
-    setNoteModal({
-      open: true,
-      action: action,
-      targetType: targetType,
-      data: data,
-      note: "", // Reset note for each new action
-    });
-  };
-
-  <Snackbar
-  open={snackbar.open}
-  autoHideDuration={5000} // Disappears after 5 seconds
-  onClose={handleCloseSnackbar}
-  anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
->
-  <Alert 
-    onClose={handleCloseSnackbar} 
-    severity={snackbar.severity} 
-    variant="contained"
-    sx={{ width: "100%", borderRadius: 2, fontWeight: 600 }}
-  >
-    {snackbar.message}
-  </Alert>
-</Snackbar>
   return (
     <Box sx={{ pb: 5 }}>
-      <Stack
-        direction="row"
-        justifyContent="space-between"
-        alignItems="center"
-        sx={{ mb: 3 }}
-      >
-        <Typography
-          variant="h4"
-          sx={{
-            fontWeight: 800,
-            display: "flex",
-            alignItems: "center",
-            letterSpacing: "-0.5px",
-          }}
-        >
-          <FilterList sx={{ mr: 1.5, color: "primary.main" }} />
-          Bookings List
-          <Typography
-            component="span"
-            variant="h6"
-            sx={{ ml: 2, color: "text.secondary", fontWeight: 400 }}
-          >
-            ({filteredAndGroupedBookings.length} Events)
-          </Typography>
+      <Typography variant="h4" sx={{ fontWeight: 800, mb: 3, display: "flex", alignItems: "center" }}>
+        <FilterList sx={{ mr: 1.5, color: "primary.main" }} />
+        Bookings List
+        <Typography component="span" variant="h6" sx={{ ml: 2, color: "text.secondary", fontWeight: 400 }}>
+          ({filteredAndGroupedBookings.length} Events)
         </Typography>
-      </Stack>
+      </Typography>
 
-      <Paper
-        elevation={0}
-        sx={{
-          p: 2.5,
-          mb: 3,
-          borderRadius: 3,
-          border: "1px solid",
-          borderColor: "divider",
-        }}
-      >
+      {/* --- FILTERS PAPER --- */}
+      <Paper elevation={0} sx={{ p: 2.5, mb: 3, borderRadius: 3, border: "1px solid", borderColor: "divider" }}>
         <Grid container spacing={2} alignItems="center">
           <Grid item xs={12} md={3}>
-            <TextField
-              fullWidth
-              size="small"
-              placeholder="Search..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <Search fontSize="small" />
-                  </InputAdornment>
-                ),
-              }}
-            />
+            <TextField fullWidth size="small" placeholder="Search ID, Event, or Name..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+              InputProps={{ startAdornment: (<InputAdornment position="start"><Search fontSize="small" /></InputAdornment>) }} />
           </Grid>
-          <Grid item xs={6} md={2}>
-            <FormControl fullWidth size="small">
-              <InputLabel>Status</InputLabel>
-              <Select
-                value={filterStatus}
-                label="Status"
-                onChange={(e) => setFilterStatus(e.target.value)}
-              >
-                {Object.values(STATUSES).map((s) => (
-                  <MenuItem key={s} value={s}>
-                    {s}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+          <Grid item xs={6} md={2}><FormControl fullWidth size="small"><InputLabel>Status</InputLabel>
+            <Select value={filterStatus} label="Status" onChange={(e) => setFilterStatus(e.target.value)}>
+              {Object.values(STATUSES).map((s) => (<MenuItem key={s} value={s}>{s}</MenuItem>))}
+            </Select></FormControl>
           </Grid>
-          <Grid item xs={6} md={2}>
-            <FormControl fullWidth size="small">
-              <InputLabel>Location</InputLabel>
-              <Select
-                value={filterLocation}
-                label="Location"
-                onChange={(e) => setFilterLocation(e.target.value)}
-              >
-                {uniqueLocations.map((loc) => (
-                  <MenuItem key={loc} value={loc}>
-                    {loc}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+          <Grid item xs={6} md={2}><FormControl fullWidth size="small"><InputLabel>Location</InputLabel>
+            <Select value={filterLocation} label="Location" onChange={(e) => setFilterLocation(e.target.value)}>
+              {uniqueLocations.map((loc) => (<MenuItem key={loc} value={loc}>{loc}</MenuItem>))}
+            </Select></FormControl>
           </Grid>
-          <Grid item xs={6} md={2}>
-            <TextField
-              fullWidth
-              size="small"
-              type="date"
-              label="From"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              InputLabelProps={{ shrink: true }}
-            />
-          </Grid>
-          <Grid item xs={6} md={2}>
-            <TextField
-              fullWidth
-              size="small"
-              type="date"
-              label="To"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              InputLabelProps={{ shrink: true }}
-            />
-          </Grid>
-          <Grid item xs={12} md={1}>
-            <Button
-              startIcon={<RestartAlt />}
-              onClick={resetFilters}
-              variant="outlined"
-              size="small"
-              fullWidth
-              sx={{ borderRadius: "8px", height: "40px" }}
-            >
-              Reset
-            </Button>
-          </Grid>
+          <Grid item xs={6} md={2}><TextField fullWidth size="small" type="date" label="From" value={startDate} onChange={(e) => setStartDate(e.target.value)} InputLabelProps={{ shrink: true }} /></Grid>
+          <Grid item xs={6} md={2}><TextField fullWidth size="small" type="date" label="To" value={endDate} onChange={(e) => setEndDate(e.target.value)} InputLabelProps={{ shrink: true }} /></Grid>
+          <Grid item xs={12} md={1}><Button startIcon={<RestartAlt />} onClick={resetFilters} variant="outlined" size="small" fullWidth sx={{ height: "40px" }}>Reset</Button></Grid>
         </Grid>
       </Paper>
 
-      <TableContainer
-        component={Paper}
-        elevation={0}
-        sx={{ border: "1px solid", borderColor: "divider", borderRadius: 3 }}
-      >
+      {/* --- TABLE --- */}
+      <TableContainer component={Paper} elevation={0} sx={{ border: "1px solid", borderColor: "divider", borderRadius: 3 }}>
         <Table size="small">
           <TableHead sx={{ bgcolor: "grey.50" }}>
             <TableRow>
-              <TableCell />
+              <TableCell width={50} />
               <TableCell sx={{ fontWeight: 700 }}>Booking ID</TableCell>
               <TableCell sx={{ fontWeight: 700 }}>Event</TableCell>
               <TableCell sx={{ fontWeight: 700 }}>Date / Time</TableCell>
               <TableCell sx={{ fontWeight: 700 }}>Organiser</TableCell>
-              <TableCell sx={{ fontWeight: 700 }}>Phone</TableCell>
-              <TableCell align="center" sx={{ fontWeight: 700 }}>
-                Details
-              </TableCell>
-              <TableCell align="center" sx={{ fontWeight: 700 }}>
-                Status
-              </TableCell>
-              {console.log(role)}
-              <TableCell align="center" sx={{ fontWeight: 700 }}>
-                Actions
-              </TableCell>
-              <TableCell align="center" sx={{ fontWeight: 700 }}>
-                Actioned By
-              </TableCell>
+              <TableCell align="center" sx={{ fontWeight: 700 }}>Status</TableCell>
+              <TableCell align="center" sx={{ fontWeight: 700 }}>Actions</TableCell>
+              <TableCell align="center" sx={{ fontWeight: 700 }}>Actioned By</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {filteredAndGroupedBookings.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={8} align="center" sx={{ py: 8 }}>
-                  <Alert
-                    severity="info"
-                    variant="outlined"
-                    sx={{ display: "inline-flex" }}
-                  >
-                    No bookings found matching these criteria.
-                  </Alert>
-                </TableCell>
-              </TableRow>
+              <TableRow><TableCell colSpan={8} align="center" sx={{ py: 8 }}><Alert severity="info" variant="outlined">No bookings found.</Alert></TableCell></TableRow>
             ) : (
               filteredAndGroupedBookings.map((group) => (
                 <PendingGroupRow
                   key={group.groupId}
                   group={group}
-                  handleGroupAction={(g, a) => openNoteModal("group", g, a)}
-                  handleIndividualAction={(id, a) =>
-                    openNoteModal("individual", id, a)
-                  }
-                  handleDeleteBooking={confirmDelete}
-                  handleSendEmail={handleSendEmail}
+                  handleGroupAction={(g, a) => setNoteModal({ open: true, action: a, data: g, note: "" })}
+                  handleDeleteBooking={(g) => { setGroupToDelete(g); setDeleteDialogOpen(true); }}
+                  handleSendEmail={(g) => sendFinalConfirmation(db, g, user)}
                   individualActionLoadingId={individualActionLoadingId}
                   groupActionLoadingId={groupActionLoadingId}
                   role={role}
@@ -494,89 +252,29 @@ export default function AllBookings({ bookings = [], loading, user,role }) {
           </TableBody>
         </Table>
       </TableContainer>
-<Snackbar
-        open={snackbar.open}
-        autoHideDuration={5000}
-        onClose={handleCloseSnackbar}
-        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-      >
-        <Alert 
-          onClose={handleCloseSnackbar} 
-          severity={snackbar.severity} 
-          variant="filled" // "filled" stands out better than "contained" for alerts
-          sx={{ width: "100%", borderRadius: 2, fontWeight: 600 }}
-        >
-          {snackbar.message}
-        </Alert>
+
+      {/* --- MODALS & SNACKBARS --- */}
+      <Snackbar open={snackbar.open} autoHideDuration={5000} onClose={handleCloseSnackbar} anchorOrigin={{ vertical: "bottom", horizontal: "center" }}>
+        <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} variant="filled">{snackbar.message}</Alert>
       </Snackbar>
-      <Dialog
-        open={deleteDialogOpen}
-        onClose={() => setDeleteDialogOpen(false)}
-      >
-        <DialogTitle sx={{ fontWeight: 700, color: "error.main" }}>
-          Confirm Deletion
-        </DialogTitle>
-        <DialogContent>
-          <Typography>
-            Are you sure you want to delete{" "}
-            <strong>{groupToDelete?.eventName}</strong>?
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-            This will remove all {groupToDelete?.bookings.length} location
-            records and cannot be undone.
-          </Typography>
-        </DialogContent>
+
+      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
+        <DialogTitle sx={{ fontWeight: 700, color: "error.main" }}>Confirm Deletion</DialogTitle>
+        <DialogContent><Typography>Are you sure you want to delete <strong>{groupToDelete?.eventName}</strong>?</Typography></DialogContent>
         <DialogActions sx={{ p: 2 }}>
-          <Button onClick={() => setDeleteDialogOpen(false)} color="inherit">
-            Cancel
-          </Button>
-          <Button
-            onClick={handleExecuteDelete}
-            variant="contained"
-            color="error"
-          >
-            Delete Everything
-          </Button>
+          <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
+          <Button onClick={handleExecuteDelete} variant="contained" color="error">Delete Everything</Button>
         </DialogActions>
       </Dialog>
-      {/* --- APPROVER'S NOTE DIALOG --- */}
-      <Dialog
-        open={noteModal.open}
-        onClose={() => setNoteModal({ ...noteModal, open: false })}
-        fullWidth
-        maxWidth="sm"
-      >
-        <DialogTitle sx={{ fontWeight: 700 }}>Approver's Note</DialogTitle>
+
+      <Dialog open={noteModal.open} onClose={() => setNoteModal({ ...noteModal, open: false })} fullWidth maxWidth="sm">
+        <DialogTitle sx={{ fontWeight: 700 }}>Add Approver Note</DialogTitle>
         <DialogContent>
-          <Typography variant="body2" sx={{ mb: 2, color: "text.secondary" }}>
-            Add an optional note to the organiser.
-          </Typography>
-          <TextField
-            fullWidth
-            multiline
-            rows={4}
-            variant="outlined"
-            placeholder="Please add your note here..."
-            value={noteModal.note}
-            onChange={(e) =>
-              setNoteModal({ ...noteModal, note: e.target.value })
-            }
-          />
+          <TextField fullWidth multiline rows={3} sx={{ mt: 1 }} placeholder="Optional message to organiser..." value={noteModal.note} onChange={(e) => setNoteModal({ ...noteModal, note: e.target.value })} />
         </DialogContent>
         <DialogActions sx={{ p: 2, bgcolor: "grey.50" }}>
-          <Button
-            onClick={() => setNoteModal({ ...noteModal, open: false })}
-            color="inherit"
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={handleConfirmDecision}
-            variant="contained"
-            color={noteModal.action === "Approved" ? "success" : "error"}
-          >
-            Confirm {noteModal.action}
-          </Button>
+          <Button onClick={() => setNoteModal({ ...noteModal, open: false })}>Cancel</Button>
+          <Button onClick={handleConfirmDecision} variant="contained" color={noteModal.action === "Approved" ? "success" : "error"}>Confirm {noteModal.action}</Button>
         </DialogActions>
       </Dialog>
     </Box>
