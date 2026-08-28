@@ -23,7 +23,7 @@
     "react-clock": "^6.0.0",
     "react-dom": "^19.2.1",
     "react-router-dom": "^7.13.0",
-    "react-scripts": "5.0.1",
+    "react-scripts": "^5.0.1",
     "react-time-picker": "^8.0.2",
     "uuid": "^13.0.0",
     "web-vitals": "^2.1.4"

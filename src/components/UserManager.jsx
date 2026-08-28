@@ -27,7 +27,7 @@ import {
   Select,
   MenuItem,
   FormControl,
-  InputLabel
+  InputLabel,
 } from "@mui/material";
 import {
   Search as SearchIcon,
@@ -175,7 +175,17 @@ export default function UserManager({ currentUser }) {
       )}
 
       {/* Header & Add User Section */}
-      <Paper elevation={3} sx={{ p: 3, mb: 4, borderRadius: 2 }}>
+      <Paper
+        elevation={0}
+        sx={{
+          p: 3,
+          mb: 4,
+          borderRadius: 4,
+          border: "1px solid",
+          borderColor: "divider",
+          boxShadow: "0px 10px 30px rgba(15,23,22,0.05)",
+        }}
+      >
         <Typography
           variant="h5"
           fontWeight={700}
@@ -185,66 +195,75 @@ export default function UserManager({ currentUser }) {
           Add User
         </Typography>
         <form onSubmit={handleAddUser}>
-  <Grid container spacing={2} sx={{ mt: 1, alignItems: 'center' }}>
-    {/* 1. Full Name */}
-    <Grid item xs={12} sm={4}>
-      <TextField
-        fullWidth
-        label="Full Name"
-        size="small"
-        value={newAdminName}
-        onChange={(e) => setNewAdminName(e.target.value)}
-        required
-      />
-    </Grid>
+          <Grid container spacing={2} sx={{ mt: 1, alignItems: "center" }}>
+            {/* 1. Full Name */}
+            <Grid size={{ xs: 12, sm: 4 }}>
+              <TextField
+                fullWidth
+                label="Full Name"
+                size="small"
+                value={newAdminName}
+                onChange={(e) => setNewAdminName(e.target.value)}
+                required
+              />
+            </Grid>
 
-    {/* 2. Email */}
-    <Grid item xs={12} sm={4}>
-      <TextField
-        fullWidth
-        label="Email"
-        size="small"
-        type="email"
-        value={newAdminEmail}
-        onChange={(e) => setNewAdminEmail(e.target.value)}
-        required
-      />
-    </Grid>
+            {/* 2. Email */}
+            <Grid size={{ xs: 12, sm: 4 }}>
+              <TextField
+                fullWidth
+                label="Email"
+                size="small"
+                type="email"
+                value={newAdminEmail}
+                onChange={(e) => setNewAdminEmail(e.target.value)}
+                required
+              />
+            </Grid>
 
-    {/* 3. Role Selection */}
-    <Grid item xs={12} sm={2}>
-      <FormControl fullWidth size="small">
-        <InputLabel>Role</InputLabel>
-        <Select
-          value={role}
-          label="Role"
-          onChange={(e) => setrole(e.target.value)}
-        >
-          <MenuItem value="user">User</MenuItem>
-          <MenuItem value="admin">Admin</MenuItem>
-          <MenuItem value="subscriber">Subscriber</MenuItem>
-        </Select>
-      </FormControl>
-    </Grid>
+            {/* 3. Role Selection */}
+            <Grid size={{ xs: 12, sm: 2 }}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Role</InputLabel>
+                <Select
+                  value={role}
+                  label="Role"
+                  onChange={(e) => setrole(e.target.value)}
+                >
+                  <MenuItem value="user">User</MenuItem>
+                  <MenuItem value="admin">Admin</MenuItem>
+                  <MenuItem value="subscriber">Subscriber</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
 
-    {/* 4. Submit Button */}
-    <Grid item xs={12} sm={2}>
-      <Button
-        fullWidth
-        variant="contained"
-        type="submit"
-        startIcon={<PersonAddIcon />}
-        sx={{ height: '40px' }} // Matches TextField height
-      >
-        Add
-      </Button>
-    </Grid>
-  </Grid>
-</form>
+            {/* 4. Submit Button */}
+            <Grid size={{ xs: 12, sm: 2 }}>
+              <Button
+                fullWidth
+                variant="contained"
+                type="submit"
+                startIcon={<PersonAddIcon />}
+                sx={{ height: "40px" }}
+              >
+                Add
+              </Button>
+            </Grid>
+          </Grid>
+        </form>
       </Paper>
 
       {/* Existing Users Table */}
-      <Paper elevation={3} sx={{ p: 3, borderRadius: 2 }}>
+      <Paper
+        elevation={0}
+        sx={{
+          p: 3,
+          borderRadius: 4,
+          border: "1px solid",
+          borderColor: "divider",
+          boxShadow: "0px 10px 30px rgba(15,23,22,0.05)",
+        }}
+      >
         <Stack
           direction="row"
           justifyContent="space-between"
@@ -304,44 +323,50 @@ export default function UserManager({ currentUser }) {
                     <TableCell>{user.displayName || "N/A"}</TableCell>
                     <TableCell>{user.email}</TableCell>
                     <TableCell align="center">
-  <Select
-    value={user.role || "user"} // Default to 'user'
-    size="small"
-    onChange={async (e) => {
-      const newRole = e.target.value;
-      const userRef = doc(db, "users", user.id);
+                      <Select
+                        value={user.role || "user"} // Default to 'user'
+                        size="small"
+                        onChange={async (e) => {
+                          const newRole = e.target.value;
+                          const userRef = doc(db, "users", user.id);
 
-      try {
-        // Update in Firestore (we update 'role' and keep 'isAdmin' for safety/legacy)
-        await updateDoc(userRef, { 
-          role: newRole,
-          isAdmin: newRole === "admin" 
-        });
+                          try {
+                            // Update in Firestore (we update 'role' and keep 'isAdmin' for safety/legacy)
+                            await updateDoc(userRef, {
+                              role: newRole,
+                              isAdmin: newRole === "admin",
+                            });
 
-        // Update local state
-        setUsers(
-          users.map((u) =>
-            u.id === user.id ? { ...u, role: newRole, isAdmin: newRole === "admin" } : u
-          )
-        );
+                            // Update local state
+                            setUsers(
+                              users.map((u) =>
+                                u.id === user.id
+                                  ? {
+                                      ...u,
+                                      role: newRole,
+                                      isAdmin: newRole === "admin",
+                                    }
+                                  : u,
+                              ),
+                            );
 
-        setSnackbar({
-          open: true,
-          message: `Role updated to ${newRole}!`,
-          severity: "success",
-        });
-      } catch (error) {
-        console.error("Error updating role:", error);
-      }
-    }}
-    disabled={user.email === auth.currentUser?.email} // Cannot change own role
-    sx={{ minWidth: 120 }}
-  >
-    <MenuItem value="user">User</MenuItem>
-    <MenuItem value="admin">Admin</MenuItem>
-    <MenuItem value="subscriber">Subscriber</MenuItem>
-  </Select>
-</TableCell>
+                            setSnackbar({
+                              open: true,
+                              message: `Role updated to ${newRole}!`,
+                              severity: "success",
+                            });
+                          } catch (error) {
+                            console.error("Error updating role:", error);
+                          }
+                        }}
+                        disabled={user.email === auth.currentUser?.email} // Cannot change own role
+                        sx={{ minWidth: 120 }}
+                      >
+                        <MenuItem value="user">User</MenuItem>
+                        <MenuItem value="admin">Admin</MenuItem>
+                        <MenuItem value="subscriber">Subscriber</MenuItem>
+                      </Select>
+                    </TableCell>
                     <TableCell align="right">
                       <IconButton
                         color="error"

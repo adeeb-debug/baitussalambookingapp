@@ -1,0 +1,7 @@
+<svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <rect x="0" y="0" width="100" height="100" rx="24" fill="#0f766e"/>
+  <!-- simplified single dome, no minarets - holds up at 16-32px -->
+  <path fill="#ffffff" d="M22,58 C22,38.7 34.3,23 50,23 C65.7,23 78,38.7 78,58 L78,62 L22,62 Z"/>
+  <rect x="22" y="61" width="56" height="17" fill="#ffffff"/>
+  <path fill="#0f766e" d="M40,78 L40,66 C40,60.5 44.5,56 50,56 C55.5,56 60,60.5 60,66 L60,78 Z"/>
+</svg>

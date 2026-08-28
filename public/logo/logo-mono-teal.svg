@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <!-- Minimalist Building Wall Icon in Pure Teal -->
+  <g fill="#00473e">
+    <!-- Parapet Outline -->
+    <path d="
+      M 10 78
+      H 90
+      V 42
+      H 84 V 47 H 78 V 42 H 72 V 47 H 66 V 36 H 58 V 41 H 50 V 36 H 42 V 47 H 36 V 42 H 30 V 47 H 24 V 42 H 18 V 47 H 10
+      Z" 
+    />
+    <!-- Cutout Windows (Transparent) -->
+    <path d="M 20 56 A 4 4 0 0 1 28 56 V 70 H 20 Z" fill="#ffffff" />
+    <path d="M 32 56 A 4 4 0 0 1 40 56 V 70 H 32 Z" fill="#ffffff" />
+    <path d="M 46 50 A 5 5 0 0 1 56 50 V 70 H 46 Z" fill="#ffffff" />
+    <path d="M 60 56 A 4 4 0 0 1 68 56 V 70 H 60 Z" fill="#ffffff" />
+    <path d="M 72 56 A 4 4 0 0 1 80 56 V 70 H 72 Z" fill="#ffffff" />
+  </g>
+</svg>

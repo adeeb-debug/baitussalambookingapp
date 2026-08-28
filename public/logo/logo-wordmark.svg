@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 60" width="340" height="60">
+  <!-- Left Emblem -->
+  <g transform="translate(0, 2)">
+    <rect width="56" height="56" rx="14" fill="#00473e" />
+    <path d="
+      M 10 42
+      H 46
+      V 24
+      H 42 V 26 H 38 V 24 H 34 V 20 H 30 V 22 H 26 V 20 H 22 V 24 H 18 V 26 H 14 V 24 H 10
+      Z" 
+      fill="#faae2b" 
+    />
+    <g fill="#00473e">
+      <rect x="14" y="30" width="4" height="8" rx="2" />
+      <rect x="21" y="28" width="5" height="10" rx="2.5" />
+      <rect x="30" y="28" width="5" height="10" rx="2.5" />
+      <rect x="38" y="30" width="4" height="8" rx="2" />
+    </g>
+  </g>
+
+  <!-- Typography -->
+  <!-- Main Title -->
+  <text 
+    x="72" 
+    y="32" 
+    fill="#00473e" 
+    font-family="'Outfit', 'Plus Jakarta Sans', sans-serif" 
+    font-weight="800" 
+    font-size="22" 
+    letter-spacing="-0.5"
+  >
+    Bait us Salam
+  </text>
+
+  <!-- Subtitle -->
+  <text 
+    x="72" 
+    y="48" 
+    fill="#475d5b" 
+    font-family="'Public Sans', 'Inter', sans-serif" 
+    font-weight="600" 
+    font-size="11" 
+    letter-spacing="1.5"
+    opacity="0.85"
+  >
+    BOOKING PORTAL
+  </text>
+</svg>

@@ -28,7 +28,7 @@ const STATUS_COLORS = {
   Rejected: '#d32f2f', // Red
 };
 
-export default function BookingsCalendar({ bookings }) {
+export default function Calendar({ bookings }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   

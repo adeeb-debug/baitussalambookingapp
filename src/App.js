@@ -10,8 +10,6 @@ import {
 } from "react-router-dom";
 import {
   Box,
-  AppBar,
-  Toolbar,
   Typography,
   Button,
   CircularProgress,
@@ -21,9 +19,10 @@ import {
 } from "@mui/material";
 import {
   LockOpenOutlined,
-  LogoutOutlined,
-  VerifiedUser,
-  AddBoxOutlined,
+  MenuOutlined,
+  EventAvailableOutlined,
+  TaskAltOutlined,
+  NotificationsActiveOutlined,
 } from "@mui/icons-material";
 import {
   onSnapshot,
@@ -34,7 +33,7 @@ import {
   getDoc,
 } from "firebase/firestore";
 import { onAuthStateChanged, signInWithPopup, signOut } from "firebase/auth";
-import { createTheme, ThemeProvider } from "@mui/material/styles";
+import { ThemeProvider } from "@mui/material/styles";
 
 // COMPONENTS
 import Navigation from "./components/Navigation";
@@ -43,29 +42,16 @@ import AllBookings from "./components/AllBookings";
 import BookingForm from "./components/BookingForm";
 import MyBookings from "./components/MyBookings";
 import UserManager from "./components/UserManager";
-import BookingsCalendar from "./components/BookingsCalendar";
+import Calendar from "./components/Calendar";
 import {
   auth,
   provider as googleProvider,
   microsoftProvider,
   db,
 } from "./firebase/firebaseConfig";
+import { appTheme as modernTheme } from "./theme/theme";
 
-// --- THEME DEFINITION ---
-const modernTheme = createTheme({
-  palette: {
-    primary: { main: "#00796b" },
-    secondary: { main: "#ff9800" },
-    background: { default: "#f5f5f5" },
-  },
-  typography: {
-    fontFamily: ['"Roboto"', "sans-serif"].join(","),
-    h6: { fontWeight: 700 },
-  },
-  shape: { borderRadius: 16 },
-});
-
-// --- MAIN WRAPPER (Fixes the useNavigate error) ---
+// --- MAIN WRAPPER ---
 export default function App() {
   return (
     <BrowserRouter>
@@ -89,6 +75,7 @@ function AppContent() {
   const navigate = useNavigate();
   const location = useLocation();
   const isMobile = useMediaQuery(modernTheme.breakpoints.down("sm"));
+  const isDesktopNav = useMediaQuery(modernTheme.breakpoints.up("md"));
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
@@ -158,9 +145,6 @@ function AppContent() {
     }
   };
 
-  const getFirstName = (user) =>
-    user?.displayName?.split(" ")[0] || user?.email?.split("@")[0] || "User";
-
   const getPageTitle = () => {
     switch (location.pathname) {
       case "/":
@@ -169,298 +153,373 @@ function AppContent() {
         return "My Bookings";
       case "/calendar":
         return "Bookings Calendar";
+      case "/all-bookings":
+        return "All Bookings";
+      case "/user-manager":
+        return "User Manager";
       default:
         return "";
     }
   };
 
+  // --- FULL-SCREEN LOADER (first auth check only) ---
+  if (loading) {
+    return (
+      <Box
+        sx={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          bgcolor: "background.default",
+        }}
+      >
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  // --- GUEST / SIGNED-OUT LANDING ---
+  if (!user) {
+    const features = [
+      {
+        icon: <EventAvailableOutlined />,
+        title: "Book in minutes",
+        desc: "Pick a hall, date and time — see availability instantly.",
+      },
+      {
+        icon: <NotificationsActiveOutlined />,
+        title: "Live status updates",
+        desc: "Know the moment your request is approved or needs changes.",
+      },
+      {
+        icon: <TaskAltOutlined />,
+        title: "One place for everything",
+        desc: "Every booking you've made, organised and easy to find.",
+      },
+    ];
+
+    return (
+      <Box
+        sx={{
+          minHeight: "100vh",
+          display: "flex",
+          flexDirection: "column",
+          bgcolor: "background.default",
+        }}
+      >
+        <Box
+          sx={{
+            flex: 1,
+            display: "flex",
+            flexDirection: isMobile ? "column" : "row",
+          }}
+        >
+          {/* --- LEFT: CONTENT --- */}
+          <Box
+            sx={{
+              flex: isMobile ? "none" : "0 0 52%",
+              display: "flex",
+              flexDirection: "column",
+              px: { xs: 3, sm: 6, md: 8 },
+              py: { xs: 4, md: 0 },
+              justify: "center",
+            }}
+          >
+            <Box
+              sx={{
+                maxWidth: 480,
+                mx: isMobile ? "auto" : 0,
+                width: "100%",
+                my: "auto",
+              }}
+            >
+              {/* Brand */}
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 1.5,
+                  mb: { xs: 4, md: 6 },
+                }}
+              >
+                <Box
+                  component="img"
+                  src="/logo/logo-badge-teal.svg"
+                  alt="Bait us Salam Logo"
+                  sx={{
+                    height: 48,
+                    width: "auto",
+                    display: "block",
+                  }}
+                />
+                <Box>
+                  <Typography
+                    variant="subtitle1"
+                    sx={{ fontWeight: 800, lineHeight: 1.15 }}
+                  >
+                    Bait us Salam
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Booking Portal
+                  </Typography>
+                </Box>
+              </Box>
+
+              <Typography
+                variant={isMobile ? "h4" : "h3"}
+                sx={{
+                  fontWeight: 800,
+                  letterSpacing: -0.5,
+                  mb: 2,
+                  lineHeight: 1.15,
+                }}
+              >
+                Book your next event at the Bait us Salam Mosque.
+              </Typography>
+              <Typography
+                variant="body1"
+                sx={{
+                  color: "text.secondary",
+                  lineHeight: 1.7,
+                  mb: 4,
+                  fontSize: "1.05rem",
+                }}
+              >
+                Sign in with Google or Microsoft to request a hall, track your
+                booking's approval status, and keep every event in one place.
+              </Typography>
+
+              <Button
+                variant="contained"
+                color="primary"
+                size="large"
+                onClick={() => setIsSignInModalOpen(true)}
+                startIcon={<LockOpenOutlined />}
+                sx={{
+                  borderRadius: "50px",
+                  px: 4.5,
+                  py: 1.6,
+                  fontWeight: 700,
+                  fontSize: "0.95rem",
+                  boxShadow: "0px 6px 20px rgba(15, 118, 110, 0.3)",
+                  transition: "all 0.2s ease",
+                  "&:hover": {
+                    bgcolor: "primary.dark",
+                    transform: "translateY(-2px)",
+                    boxShadow: "0px 8px 25px rgba(15, 118, 110, 0.4)",
+                  },
+                }}
+              >
+                Sign in to get started
+              </Button>
+
+              <Box
+                sx={{
+                  mt: { xs: 5, md: 7 },
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 3,
+                }}
+              >
+                {features.map((f) => (
+                  <Box
+                    key={f.title}
+                    sx={{ display: "flex", alignItems: "flex-start", gap: 2 }}
+                  >
+                    <Box
+                      sx={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: 2,
+                        bgcolor: "rgba(15,118,110,0.09)",
+                        color: "primary.main",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexShrink: 0,
+                        "& svg": { fontSize: 20 },
+                      }}
+                    >
+                      {f.icon}
+                    </Box>
+                    <Box>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                        {f.title}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {f.desc}
+                      </Typography>
+                    </Box>
+                  </Box>
+                ))}
+              </Box>
+            </Box>
+          </Box>
+
+          {/* --- RIGHT: IMAGE --- */}
+          <Box
+            sx={{
+              flex: isMobile ? "none" : "0 0 48%",
+              position: "relative",
+              height: isMobile ? 260 : "auto",
+              m: { xs: 0, md: 2 },
+              ml: { md: 0 },
+              borderRadius: { xs: 0, md: 4 },
+              overflow: "hidden",
+            }}
+          >
+            <CardMedia
+              component="img"
+              src={process.env.PUBLIC_URL + "/baitussalam.jpg"}
+              sx={{
+                height: "100%",
+                width: "100%",
+                objectFit: "cover",
+                objectPosition: "center 30%",
+                display: "block",
+              }}
+            />
+            <Box
+              sx={{
+                position: "absolute",
+                inset: 0,
+                background:
+                  "linear-gradient(180deg, rgba(11,26,23,0.05) 0%, rgba(11,26,23,0.55) 100%)",
+              }}
+            />
+            <Box
+              sx={{
+                position: "absolute",
+                left: 0,
+                right: 0,
+                bottom: 0,
+                p: { xs: 3, md: 4 },
+              }}
+            >
+              <Typography
+                sx={{
+                  color: "white",
+                  fontWeight: 700,
+                  fontSize: "1.05rem",
+                  textShadow: "0px 2px 6px rgba(0,0,0,0.35)",
+                }}
+              >
+                Bait us Salam Mosque
+              </Typography>
+              <Typography
+                variant="body2"
+                sx={{
+                  color: "rgba(255,255,255,0.85)",
+                  textShadow: "0px 1px 4px rgba(0,0,0,0.35)",
+                }}
+              >
+                House of Peace.
+              </Typography>
+            </Box>
+          </Box>
+        </Box>
+
+        {/* --- GUEST FOOTER --- */}
+        {/* --- SUBTLE INLINE FOOTER --- */}
+        <Box
+          component="footer"
+          sx={{
+            py: 3,
+            px: 4,
+            textAlign: "center",
+            opacity: 0.6,
+          }}
+        >
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            sx={{ fontSize: "0.75rem", letterSpacing: 0.3 }}
+          >
+            © {new Date().getFullYear()} Bait us Salam Mosque. All rights
+            reserved.
+          </Typography>
+        </Box>
+
+        <SignInModal
+          isOpen={isSignInModalOpen}
+          onClose={() => setIsSignInModalOpen(false)}
+          onLogin={login}
+        />
+      </Box>
+    );
+  }
+
+  // --- AUTHENTICATED APP SHELL: sidebar + topbar + content ---
   return (
     <Box
       sx={{
+        display: "flex",
         minHeight: "100vh",
         bgcolor: "background.default",
-        overflowX: "hidden",
       }}
     >
-      {/* --- HERO SECTION --- */}
+      <Navigation
+        user={user}
+        role={role}
+        isAuthorized={isAuthorized}
+        onNavigate={(path) => navigate(path)}
+        isDrawerOpen={isDrawerOpen}
+        setIsDrawerOpen={setIsDrawerOpen}
+        onLogout={() => signOut(auth)}
+      />
+
       <Box
+        component="main"
         sx={{
-          position: "relative",
-          width: "100%",
-          height: isMobile ? "280px" : "400px",
-          marginBottom: "-1px", // Fixes sub-pixel gap line
-          overflow: "visible",
+          flexGrow: 1,
+          minWidth: 0,
+          display: "flex",
+          flexDirection: "column",
         }}
       >
-        {/* Subtle Bottom Transition Overlay */}
+        {/* --- TOP BAR --- */}
         <Box
           sx={{
-            position: "absolute",
-            bottom: 0,
-            left: 0,
-            right: 0,
-            height: "80px",
-            background: "linear-gradient(to bottom, transparent, #f5f5f5)",
-            pointerEvents: "none",
-            zIndex: 2,
-          }}
-        />
-
-        <CardMedia
-          component="img"
-          image="/baitussalam.jpg"
-          sx={{
-            height: "100%",
-            width: "100%",
-            objectFit: "cover",
-            objectPosition: "center 30%",
-            display: "block", // Crucial fix for the bottom "line"
-          }}
-        />
-
-        {/* Top Gradient */}
-        <Box
-          sx={{
-            position: "absolute",
+            position: "sticky",
             top: 0,
-            left: 0,
-            width: "100%",
-            height: "40%",
-            background:
-              "linear-gradient(to bottom, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0) 100%)",
-            zIndex: 1,
+            zIndex: 5,
+            bgcolor: "rgba(247,248,250,0.85)",
+            backdropFilter: "blur(8px)",
+            borderBottom: "1px solid",
+            borderColor: "divider",
+            px: { xs: 2, md: 4 },
+            py: 2.25,
+            display: "flex",
+            alignItems: "center",
+            gap: 1.5,
           }}
-        />
-
-        {/* Bottom Gradient (Matches Page BG) */}
-        <Box
-          sx={{
-            position: "absolute",
-            bottom: 0,
-            left: 0,
-            width: "100%",
-            height: "150px",
-            background:
-              "linear-gradient(to top, rgba(245,245,245,1) 0%, rgba(245,245,245,0) 100%)",
-            zIndex: 1,
-          }}
-        />
-
-        {/* Navigation Bar */}
-        <AppBar
-          position="absolute"
-          color="transparent"
-          elevation={0}
-          sx={{ zIndex: 10 }}
         >
-          <Toolbar sx={{ px: isMobile ? 2 : 5 }}>
-            {isMobile && (
-              <Navigation
-                user={user}
-                role={role}
-                isAuthorized={isAuthorized}
-                onNavigate={(path) => navigate(path)}
-                isDrawerOpen={isDrawerOpen}
-                setIsDrawerOpen={setIsDrawerOpen}
-              />
-            )}
-
-            <Typography
-              variant="h6"
-              sx={{
-                flexGrow: 1,
-                color: "white",
-                textShadow: "0px 2px 4px rgba(0,0,0,0.5)",
-                display: "flex",
-                alignItems: "center",
-                gap: 1,
-              }}
-            >
-              Bait us Salam Booking Portal{" "}
-              {role === "admin" && (
-                <VerifiedUser
-                  sx={{ color: "secondary.main" }}
-                  fontSize="small"
-                />
-              )}
-            </Typography>
-
-            {!isMobile && (
-              <Navigation
-                user={user}
-                role={role}
-                onNavigate={(path) => navigate(path)}
-                sx={{ color: "white" }}
-              />
-            )}
-
-            {user ? (
-              <Box
-                sx={{ display: "flex", alignItems: "center", gap: 1, ml: 2 }}
-              >
-                {!isMobile && (
-                  <Typography
-                    variant="body2"
-                    sx={{ color: "white", fontWeight: "bold" }}
-                  >
-                    {getFirstName(user)}
-                  </Typography>
-                )}
-                <IconButton
-                  onClick={() => signOut(auth)}
-                  sx={{
-                    color: "white",
-                    bgcolor: "rgba(255,255,255,0.1)",
-                    "&:hover": { bgcolor: "rgba(255,255,255,0.2)" },
-                  }}
-                >
-                  <LogoutOutlined />
-                </IconButton>
-              </Box>
-            ) : null}
-          </Toolbar>
-        </AppBar>
-      </Box>
-
-      {/* --- MAIN CONTENT AREA --- */}
-      <Box
-        sx={{
-          px: isMobile ? 1.5 : 4,
-          pb: 8,
-          mt: isMobile ? -5 : -8, // Increased mobile overlap to hide the line
-          position: "relative",
-          zIndex: 15, // Higher than hero gradients
-        }}
-      >
-        <Box sx={{ maxWidth: "1100px", mx: "auto" }}>
-          {/* Dynamic Page Title */}
-          {user && (
-            <Typography
-              variant={isMobile ? "h5" : "h4"}
-              sx={{
-                fontWeight: "bold",
-                color: "primary.main",
-                mb: 4,
-                textShadow: isMobile
-                  ? "0px 1px 2px rgba(255,255,255,0.8)"
-                  : "none",
-              }}
-            >
-              {getPageTitle()}
-            </Typography>
+          {!isDesktopNav && (
+            <IconButton onClick={() => setIsDrawerOpen(true)} edge="start">
+              <MenuOutlined />
+            </IconButton>
           )}
+          <Typography variant="h5" sx={{ fontWeight: 800 }}>
+            {getPageTitle()}
+          </Typography>
+        </Box>
 
-          {loading ? (
-            <Box sx={{ display: "flex", justifyContent: "center", p: 4 }}>
-              <CircularProgress />
-            </Box>
-          ) : (
+        {/* --- PAGE CONTENT --- */}
+        <Box sx={{ px: { xs: 2, md: 4 }, py: { xs: 3, md: 4 }, flex: 1 }}>
+          <Box sx={{ maxWidth: "1200px", mx: "auto" }}>
             <Routes>
               <Route
                 path="/"
                 element={
-                  user ? (
-                    <BookingForm user={user} role={role} bookings={bookings} />
-                  ) : (
-                    <Box
-                      sx={{
-                        display: "flex",
-                        flexDirection: isMobile ? "column" : "row",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        bgcolor: "white", // Changed to solid white for better blending
-                        p: isMobile ? 3 : 5,
-                        borderRadius: isMobile ? 4 : "100px",
-                        gap: 3,
-                        border: "1px solid rgba(0, 121, 107, 0.1)",
-                        boxShadow: "0px 10px 30px rgba(0,0,0,0.08)",
-                        mt: 2,
-                      }}
-                    >
-                      <Box
-                        sx={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: isMobile ? 2 : 4,
-                          flexDirection: isMobile ? "column" : "row",
-                          textAlign: isMobile ? "center" : "left",
-                        }}
-                      >
-                        <Box
-                          sx={{
-                            width: 80,
-                            height: 80,
-                            borderRadius: "50%",
-                            bgcolor: "primary.main",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            boxShadow: "0px 8px 20px rgba(0, 121, 107, 0.2)",
-                            flexShrink: 0,
-                          }}
-                        >
-                          <AddBoxOutlined
-                            sx={{ fontSize: 40, color: "white" }}
-                          />
-                        </Box>
-                        <Box>
-                          <Typography
-                            variant={isMobile ? "h6" : "h5"}
-                            sx={{
-                              fontWeight: 800,
-                              color: "primary.dark",
-                              mb: 0.5,
-                            }}
-                          >
-                            Ready to book at Baitus Salam Mosque?
-                          </Typography>
-                          <Typography
-                            variant="body1"
-                            sx={{
-                              color: "text.secondary",
-                              maxWidth: "500px",
-                              lineHeight: 1.6,
-                            }}
-                          >
-                            Please sign in with your google or microsoft account
-                            to access our booking form and to keep a record of
-                            your bookings.
-                          </Typography>
-                        </Box>
-                      </Box>
-                      <Button
-                        variant="contained"
-                        color="primary"
-                        onClick={() => setIsSignInModalOpen(true)}
-                        startIcon={<LockOpenOutlined />}
-                        sx={{
-                          borderRadius: "50px",
-                          px: 5,
-                          py: 1.8,
-                          fontWeight: 700,
-                          fontSize: "0.95rem",
-                          whiteSpace: "nowrap",
-                          boxShadow: "0px 6px 20px rgba(0, 121, 107, 0.3)",
-                          transition: "all 0.3s ease",
-                          "&:hover": {
-                            bgcolor: "primary.dark",
-                            transform: "translateY(-2px)",
-                            boxShadow: "0px 8px 25px rgba(0, 121, 107, 0.4)",
-                          },
-                        }}
-                      >
-                        SIGN IN NOW
-                      </Button>
-                    </Box>
-                  )
+                  <BookingForm user={user} role={role} bookings={bookings} />
                 }
               />
-
               <Route
                 path="/calendar"
                 element={
                   ["user", "subscriber", "admin"].includes(role) ? (
-                    <BookingsCalendar bookings={bookings} role={role} />
+                    <Calendar bookings={bookings} role={role} />
                   ) : (
                     <Navigate to="/" />
                   )
@@ -469,23 +528,19 @@ function AppContent() {
               <Route
                 path="/my-bookings"
                 element={
-                  user ? (
-                    <MyBookings
-                      bookings={bookings}
-                      role={role}
-                      user={user} // ✅ Add this
-                      loading={loading} // ✅ Add this (if you have a loading state)
-                    />
-                  ) : (
-                    <Navigate to="/" />
-                  )
+                  <MyBookings
+                    bookings={bookings}
+                    role={role}
+                    user={user}
+                    loading={loading}
+                  />
                 }
               />
               <Route
                 path="/all-bookings"
                 element={
                   role === "admin" ? (
-                    <AllBookings bookings={bookings} user={user} role={role}/>
+                    <AllBookings bookings={bookings} user={user} role={role} />
                   ) : (
                     <Navigate to="/" />
                   )
@@ -499,7 +554,28 @@ function AppContent() {
               />
               <Route path="*" element={<Navigate to="/" />} />
             </Routes>
-          )}
+          </Box>
+        </Box>
+
+        {/* --- AUTHENTICATED APP FOOTER --- */}
+        {/* --- SUBTLE INLINE FOOTER --- */}
+        <Box
+          component="footer"
+          sx={{
+            py: 3,
+            px: 4,
+            textAlign: "center",
+            opacity: 0.6,
+          }}
+        >
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            sx={{ fontSize: "0.75rem", letterSpacing: 0.3 }}
+          >
+            © {new Date().getFullYear()} Bait us Salam Mosque. All rights
+            reserved.
+          </Typography>
         </Box>
       </Box>
 

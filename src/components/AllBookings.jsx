@@ -27,13 +27,22 @@ import {
   DialogActions,
   Snackbar,
 } from "@mui/material";
-import { FilterList, Search, RestartAlt } from "@mui/icons-material";
+import {
+  FilterList,
+  Search,
+  RestartAlt,
+  EventNote,
+  HourglassEmpty,
+  CheckCircleOutline,
+  CancelOutlined,
+} from "@mui/icons-material";
 import { doc, updateDoc, deleteDoc } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
 import { STATUSES } from "../utils/statuses";
 import { groupBookings } from "../utils/groupBookings";
 import { sendFinalConfirmation } from "../utils/bookingService";
 import PendingGroupRow from "./PendingGroupRow";
+import StatCard from "./StatCard";
 import dayjs from "dayjs";
 
 export default function AllBookings({ bookings = [], loading, user, role }) {
@@ -184,36 +193,69 @@ export default function AllBookings({ bookings = [], loading, user, role }) {
     </Box>
   );
 
-  return (
+  const statCounts = {
+    total: bookings.length,
+    pending: bookings.filter((b) => b.status === "Pending").length,
+    approved: bookings.filter((b) => b.status === "Approved").length,
+    rejected: bookings.filter((b) => b.status === "Rejected" || b.status === "Cancelled").length,
+  };
+
+return (
     <Box sx={{ pb: 5 }}>
-      <Typography variant="h4" sx={{ fontWeight: 800, mb: 3, display: "flex", alignItems: "center" }}>
-        <FilterList sx={{ mr: 1.5, color: "primary.main" }} />
+      {/* STAT CARDS - MUI v6 Grid */}
+      <Grid container spacing={2} sx={{ mb: 3 }}>
+        <Grid size={{ xs: 6, md: 3 }}>
+          <StatCard icon={<EventNote />} label="Total Bookings" value={statCounts.total} color="primary" />
+        </Grid>
+        <Grid size={{ xs: 6, md: 3 }}>
+          <StatCard icon={<HourglassEmpty />} label="Pending" value={statCounts.pending} color="warning" />
+        </Grid>
+        <Grid size={{ xs: 6, md: 3 }}>
+          <StatCard icon={<CheckCircleOutline />} label="Approved" value={statCounts.approved} color="success" />
+        </Grid>
+        <Grid size={{ xs: 6, md: 3 }}>
+          <StatCard icon={<CancelOutlined />} label="Rejected" value={statCounts.rejected} color="error" />
+        </Grid>
+      </Grid>
+
+      <Typography variant="h6" sx={{ fontWeight: 700, mb: 2, display: "flex", alignItems: "center" }}>
+        <FilterList sx={{ mr: 1, color: "primary.main" }} fontSize="small" />
         Bookings List
-        <Typography component="span" variant="h6" sx={{ ml: 2, color: "text.secondary", fontWeight: 400 }}>
+        <Typography component="span" variant="body2" sx={{ ml: 1.5, color: "text.secondary", fontWeight: 500 }}>
           ({filteredAndGroupedBookings.length} Events)
         </Typography>
       </Typography>
 
-      {/* --- FILTERS PAPER --- */}
+      {/* --- FILTERS PAPER - MUI v6 Grid --- */}
       <Paper elevation={0} sx={{ p: 2.5, mb: 3, borderRadius: 3, border: "1px solid", borderColor: "divider" }}>
         <Grid container spacing={2} alignItems="center">
-          <Grid item xs={12} md={3}>
+          <Grid size={{ xs: 12, md: 3 }}>
             <TextField fullWidth size="small" placeholder="Search ID, Event, or Name..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
               InputProps={{ startAdornment: (<InputAdornment position="start"><Search fontSize="small" /></InputAdornment>) }} />
           </Grid>
-          <Grid item xs={6} md={2}><FormControl fullWidth size="small"><InputLabel>Status</InputLabel>
-            <Select value={filterStatus} label="Status" onChange={(e) => setFilterStatus(e.target.value)}>
-              {Object.values(STATUSES).map((s) => (<MenuItem key={s} value={s}>{s}</MenuItem>))}
-            </Select></FormControl>
+          <Grid size={{ xs: 6, md: 2 }}>
+            <FormControl fullWidth size="small"><InputLabel>Status</InputLabel>
+              <Select value={filterStatus} label="Status" onChange={(e) => setFilterStatus(e.target.value)}>
+                {Object.values(STATUSES).map((s) => (<MenuItem key={s} value={s}>{s}</MenuItem>))}
+              </Select>
+            </FormControl>
           </Grid>
-          <Grid item xs={6} md={2}><FormControl fullWidth size="small"><InputLabel>Location</InputLabel>
-            <Select value={filterLocation} label="Location" onChange={(e) => setFilterLocation(e.target.value)}>
-              {uniqueLocations.map((loc) => (<MenuItem key={loc} value={loc}>{loc}</MenuItem>))}
-            </Select></FormControl>
+          <Grid size={{ xs: 6, md: 2 }}>
+            <FormControl fullWidth size="small"><InputLabel>Location</InputLabel>
+              <Select value={filterLocation} label="Location" onChange={(e) => setFilterLocation(e.target.value)}>
+                {uniqueLocations.map((loc) => (<MenuItem key={loc} value={loc}>{loc}</MenuItem>))}
+              </Select>
+            </FormControl>
           </Grid>
-          <Grid item xs={6} md={2}><TextField fullWidth size="small" type="date" label="From" value={startDate} onChange={(e) => setStartDate(e.target.value)} InputLabelProps={{ shrink: true }} /></Grid>
-          <Grid item xs={6} md={2}><TextField fullWidth size="small" type="date" label="To" value={endDate} onChange={(e) => setEndDate(e.target.value)} InputLabelProps={{ shrink: true }} /></Grid>
-          <Grid item xs={12} md={1}><Button startIcon={<RestartAlt />} onClick={resetFilters} variant="outlined" size="small" fullWidth sx={{ height: "40px" }}>Reset</Button></Grid>
+          <Grid size={{ xs: 6, md: 2 }}>
+            <TextField fullWidth size="small" type="date" label="From" value={startDate} onChange={(e) => setStartDate(e.target.value)} InputLabelProps={{ shrink: true }} />
+          </Grid>
+          <Grid size={{ xs: 6, md: 2 }}>
+            <TextField fullWidth size="small" type="date" label="To" value={endDate} onChange={(e) => setEndDate(e.target.value)} InputLabelProps={{ shrink: true }} />
+          </Grid>
+          <Grid size={{ xs: 12, md: 1 }}>
+            <Button startIcon={<RestartAlt />} onClick={resetFilters} variant="outlined" size="small" fullWidth sx={{ height: "40px" }}>Reset</Button>
+          </Grid>
         </Grid>
       </Paper>
 

@@ -5,13 +5,19 @@ import {
   CircularProgress,
   Alert,
   Box,
+  Paper,
+  Divider,
   FormControlLabel,
   Checkbox,
   Dialog,
-  DialogTitle,
   DialogContent,
   DialogActions,
 } from "@mui/material";
+import {
+  EventAvailable,
+  InfoOutlined,
+  CheckCircle,
+} from "@mui/icons-material";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import dayjs from "dayjs";
@@ -254,13 +260,56 @@ const handleSend = async () => {
     <LocalizationProvider dateAdapter={AdapterDayjs}>
       <Box>
         {status.error && (
-          <Alert severity="error" sx={{ mb: 2 }}>
+          <Alert severity="error" sx={{ mb: 2.5 }} variant="outlined">
             {status.error}
           </Alert>
         )}
 
         {user ? (
-          <>
+          <Paper
+            elevation={0}
+            sx={{
+              p: { xs: 2.5, sm: 4 },
+              borderRadius: 4,
+              border: "1px solid",
+              borderColor: "divider",
+              boxShadow: "0px 10px 30px rgba(15,23,22,0.05)",
+            }}
+          >
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: 1.5,
+                mb: 3,
+              }}
+            >
+              <Box
+                sx={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 2.5,
+                  bgcolor: "primary.main",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}
+              >
+                <EventAvailable sx={{ color: "white" }} />
+              </Box>
+              <Box>
+                <Typography variant="h6" sx={{ fontWeight: 700, lineHeight: 1.2 }}>
+                  Booking Details
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Fields marked required must be completed before submitting.
+                </Typography>
+              </Box>
+            </Box>
+
+            <Divider sx={{ mb: 3 }} />
+
             <BookingFormFields
               formData={formData}
               setFormData={setFormData}
@@ -269,29 +318,47 @@ const handleSend = async () => {
               conflictedLocations={conflictedLocations}
             />
 
-            <Alert severity="info" sx={{ my: 2 }}>
-              <ul style={{ margin: 0, paddingLeft: "1.25rem" }}>
+            <Alert
+              icon={<InfoOutlined fontSize="small" />}
+              severity="info"
+              variant="outlined"
+              sx={{ my: 3 }}
+            >
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>
+                Before you submit
+              </Typography>
+              <Box component="ul" sx={{ m: 0, pl: 2.25 }}>
                 <li>Jamaat Jalsa or meetings with Ameer Sb take precedence.</li>
                 <li>You are responsible for cleaning after the event.</li>
                 <li>No events on Fridays before 3:00 PM.</li>
-              </ul>
+              </Box>
             </Alert>
 
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={acceptedDisclaimer}
-                  onChange={(e) => setAcceptedDisclaimer(e.target.checked)}
-                />
-              }
-              label="I understand and accept the conditions."
-            />
+            <Box
+              sx={{
+                p: 2,
+                borderRadius: 2.5,
+                bgcolor: "grey.50",
+                border: "1px solid",
+                borderColor: "divider",
+              }}
+            >
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={acceptedDisclaimer}
+                    onChange={(e) => setAcceptedDisclaimer(e.target.checked)}
+                  />
+                }
+                label="I understand and accept the conditions."
+              />
+            </Box>
 
             <Button
               fullWidth
               variant="contained"
               size="large"
-              sx={{ mt: 3, py: 1.5, fontWeight: 600 }}
+              sx={{ mt: 3, py: 1.6, fontSize: "1rem" }}
               disabled={isSubmitting}
               onClick={handleSend}
               startIcon={
@@ -300,7 +367,7 @@ const handleSend = async () => {
             >
               {isSubmitting ? "Submitting..." : "Submit Request"}
             </Button>
-          </>
+          </Paper>
         ) : (
           <Alert severity="info">Please sign in to make a booking.</Alert>
         )}
@@ -309,17 +376,22 @@ const handleSend = async () => {
       <Dialog
         open={successPopupOpen}
         onClose={() => setSuccessPopupOpen(false)}
-        maxWidth="sm"
+        maxWidth="xs"
         fullWidth
+        PaperProps={{ sx: { textAlign: "center", p: 1 } }}
       >
-        <DialogTitle>✅ Request Submitted</DialogTitle>
-        <DialogContent>
-          <Typography>
+        <DialogContent sx={{ pt: 4 }}>
+          <CheckCircle sx={{ fontSize: 56, color: "success.main", mb: 1.5 }} />
+          <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>
+            Request Submitted
+          </Typography>
+          <Typography color="text.secondary">
             Jazakallah for submitting your request. We will review it shortly.
           </Typography>
         </DialogContent>
-        <DialogActions>
+        <DialogActions sx={{ p: 2.5, pt: 1 }}>
           <Button
+            fullWidth
             onClick={() => setSuccessPopupOpen(false)}
             variant="contained"
           >
