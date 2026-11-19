@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Button,
   Typography,
@@ -12,12 +12,11 @@ import {
   Dialog,
   DialogContent,
   DialogActions,
+  Stepper,
+  Step,
+  StepLabel,
 } from "@mui/material";
-import {
-  EventAvailable,
-  InfoOutlined,
-  CheckCircle,
-} from "@mui/icons-material";
+import { EventAvailable, InfoOutlined, CheckCircle } from "@mui/icons-material";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import dayjs from "dayjs";
@@ -50,27 +49,59 @@ const buildJamaatLabel = (f) => {
   return "";
 };
 
-export default function BookingForm({ user, role, bookings }) {
-  const INITIAL_FORM_DATA = (user) => ({
-    fullName: "",
-    phoneNumber: "",
-    jamaat: "", // filled automatically on submit from the fields below
-    organisationType: "", // "auxiliary" | "jamaat"
-    auxiliaries: [],
-    majlisNames: [],
-    jamaatNames: [],
-    date: "",
-    fromTime: "",
-    toTime: "",
-    locations: [],
-    eventName: "",
-    expectedPeople: "",
-    expectedCars: "",
-    isRecurring: false,
-    recurrenceType: "weekly",
-    endDate: "",
-  });
+const STEPS = ["About you", "When and where", "Event details", "Review"];
+const REVIEW_STEP = STEPS.length - 1;
 
+const INITIAL_FORM_DATA = (user) => ({
+  fullName: user?.displayName || "", // prefilled when the account has one
+  phoneNumber: "",
+  jamaat: "", // filled automatically on submit from the fields below
+  organisationType: "", // "auxiliary" | "jamaat"
+  auxiliaries: [],
+  majlisNames: [],
+  jamaatNames: [],
+  date: "",
+  fromTime: "",
+  toTime: "",
+  locations: [],
+  eventName: "",
+  expectedPeople: "",
+  expectedCars: "",
+  isRecurring: false,
+  recurrenceType: "weekly",
+  endDate: "",
+});
+
+/** One label/value row in the review step, with an Edit link */
+function ReviewRow({ label, value, onEdit }) {
+  return (
+    <Box
+      sx={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "flex-start",
+        gap: 2,
+        py: 1,
+      }}
+    >
+      <Box sx={{ minWidth: 0 }}>
+        <Typography variant="caption" color="text.secondary">
+          {label}
+        </Typography>
+        <Typography variant="body2" sx={{ wordBreak: "break-word" }}>
+          {value || "—"}
+        </Typography>
+      </Box>
+      {onEdit && (
+        <Button size="small" onClick={onEdit} sx={{ flexShrink: 0 }}>
+          Edit
+        </Button>
+      )}
+    </Box>
+  );
+}
+
+export default function BookingForm({ user, role, bookings }) {
   const [formData, setFormData] = useState(INITIAL_FORM_DATA(user));
   const [availableLocations, setAvailableLocations] = useState(LOCATIONS);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -78,6 +109,13 @@ export default function BookingForm({ user, role, bookings }) {
   const [acceptedDisclaimer, setAcceptedDisclaimer] = useState(false);
   const [successPopupOpen, setSuccessPopupOpen] = useState(false);
   const [conflictedLocations, setConflictedLocations] = useState([]);
+  const [activeStep, setActiveStep] = useState(0);
+  const topRef = useRef(null);
+
+  /** Scroll to the top of the form whenever the step changes */
+  useEffect(() => {
+    topRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [activeStep]);
 
   /** 🏛️ ORGANISATION VALIDATION (auxiliary or jamaat) */
   const isOrganisationValid = () => {
@@ -90,27 +128,63 @@ export default function BookingForm({ user, role, bookings }) {
     return false;
   };
 
-  /** 🔐 CENTRAL VALIDATION */
-  const validateForm = () => {
-    const baseValid =
-      formData.fullName &&
-      formData.phoneNumber &&
-      isOrganisationValid() &&
-      formData.date &&
-      formData.fromTime &&
-      formData.toTime &&
-      formData.locations.length > 0 &&
-      formData.eventName &&
-      formData.expectedPeople &&
-      formData.expectedCars;
+  /** Conflicts that affect the locations currently selected */
+  const getActiveConflicts = () =>
+    conflictedLocations.filter((c) => formData.locations.includes(c.location));
 
-    if (formData.isRecurring) {
-      return baseValid && formData.endDate; // Ensure end date is picked if recurring
-    }
-    return baseValid;
+  const buildConflictMessage = (activeConflicts) => {
+    const details = activeConflicts
+      .map((c) => {
+        const dateList = c.dates.map((d) => dayjs(d).format("MMM D")).join(", ");
+        return `${c.location} is booked for "${c.eventName}" on ${dateList}`;
+      })
+      .join(" | ");
+    return `Booking conflict: ${details}. Please adjust your dates or locations.`;
   };
 
-  /** 📍 UPDATED LOCATION AVAILABILITY (with Detail) */
+  /** 🔐 PER-STEP VALIDATION — returns an error string, or "" when valid */
+  const validateStep = (step) => {
+    switch (step) {
+      case 0:
+        if (!formData.fullName || !formData.phoneNumber) {
+          return "Enter your full name and phone number.";
+        }
+        if (!isOrganisationValid()) {
+          return "Choose your organisation and select at least one name.";
+        }
+        return "";
+      case 1: {
+        if (!formData.date || !formData.fromTime || !formData.toTime) {
+          return "Choose a date, start time and end time.";
+        }
+        if (formData.toTime <= formData.fromTime) {
+          return "The end time must be after the start time.";
+        }
+        if (formData.isRecurring && !formData.endDate) {
+          return "Choose an end date for the recurring booking.";
+        }
+        if (formData.locations.length === 0) {
+          return "Select at least one location.";
+        }
+        const active = getActiveConflicts();
+        if (active.length > 0) return buildConflictMessage(active);
+        return "";
+      }
+      case 2:
+        if (
+          !formData.eventName ||
+          !formData.expectedPeople ||
+          !formData.expectedCars
+        ) {
+          return "Enter the event name, expected people and expected cars.";
+        }
+        return "";
+      default:
+        return "";
+    }
+  };
+
+  /** 📍 LOCATION AVAILABILITY (with detail) — unchanged logic */
   useEffect(() => {
     if (!formData.date || !formData.fromTime || !formData.toTime || !bookings)
       return;
@@ -124,19 +198,19 @@ export default function BookingForm({ user, role, bookings }) {
           )
         : [formData.date];
 
-    const conflicts = []; // Store objects: { location, eventName, dates: [] }
+    const conflicts = []; // { location, eventName, dates: [] }
 
     bookings.forEach((b) => {
       if (b.status === "Cancelled" || b.status === "Rejected") return;
 
-      // A. Check Date Overlap
+      // A. Date overlap
       const existingDates = b.allDates || [b.date];
       const clashingDates = requestedDates.filter((d) =>
         existingDates.includes(d),
       );
       if (clashingDates.length === 0) return;
 
-      // B. Check Time Overlap
+      // B. Time overlap
       const REFERENCE_DATE = "2026-01-01";
       const isTimeClash = overlaps(
         dayjs(`${REFERENCE_DATE}T${formData.fromTime}`).toDate(),
@@ -145,27 +219,24 @@ export default function BookingForm({ user, role, bookings }) {
         dayjs(`${REFERENCE_DATE}T${b.toTime}`).toDate(),
       );
 
-      // C. Record the specific details
+      // C. Record the specifics
       if (isTimeClash) {
         const locs = Array.isArray(b.locations) ? b.locations : [b.location];
         locs.forEach((locName) => {
           conflicts.push({
             location: locName,
             eventName: b.eventName,
-            dates: clashingDates, // These are the specific days it's blocked
+            dates: clashingDates,
           });
         });
       }
     });
 
-    // Filter available locations (just the names for the dropdown)
     const blockedNames = conflicts.map((c) => c.location);
-    const filtered = LOCATIONS.filter(
-      (loc) => !blockedNames.includes(loc.name),
+    setAvailableLocations(
+      LOCATIONS.filter((loc) => !blockedNames.includes(loc.name)),
     );
-
-    setAvailableLocations(filtered);
-    setConflictedLocations(conflicts); // Now storing full objects
+    setConflictedLocations(conflicts);
   }, [
     formData.date,
     formData.endDate,
@@ -176,41 +247,44 @@ export default function BookingForm({ user, role, bookings }) {
     bookings,
   ]);
 
+  /** ⬅️ ➡️ NAVIGATION */
+  const handleNext = () => {
+    const error = validateStep(activeStep);
+    if (error) {
+      setStatus({ error, success: false });
+      return;
+    }
+    setStatus({ error: "", success: false });
+    setActiveStep((s) => s + 1);
+  };
+
+  const handleBack = () => {
+    setStatus({ error: "", success: false });
+    setActiveStep((s) => s - 1);
+  };
+
+  const goToStep = (step) => {
+    setStatus({ error: "", success: false });
+    setActiveStep(step);
+  };
+
   /** 🚀 SUBMIT */
   const handleSend = async () => {
     setStatus({ error: "", success: false });
 
-    // 1. 🛑 CONFLICT GATEKEEPER
-    // Filter the conflicts list to only see ones affecting the user's current selection
-    const activeConflicts = conflictedLocations.filter((c) =>
-      formData.locations.includes(c.location),
-    );
-
-    if (activeConflicts.length > 0) {
-      // Generate a detailed error string
-      const conflictDetails = activeConflicts
-        .map((c) => {
-          const dateList = c.dates
-            .map((d) => dayjs(d).format("MMM D"))
-            .join(", ");
-          return `${c.location} is booked for "${c.eventName}" on ${dateList}`;
-        })
-        .join(" | ");
-
-      setStatus({
-        error: `Booking Conflict: ${conflictDetails}. Please adjust your dates or locations.`,
-        success: false,
-      });
-
-      // Scroll to top so the user sees the red Alert
-      window.scrollTo({ top: 0, behavior: "smooth" });
-      return; // Kill the process
+    // Re-check every step, in case something changed after the user went back
+    for (let step = 0; step < REVIEW_STEP; step++) {
+      const error = validateStep(step);
+      if (error) {
+        setStatus({ error, success: false });
+        setActiveStep(step);
+        return;
+      }
     }
 
-    // 2. Standard Validation
-    if (!validateForm() || !acceptedDisclaimer) {
+    if (!acceptedDisclaimer) {
       setStatus({
-        error: "Please complete all fields and accept the disclaimer.",
+        error: "Accept the conditions to submit your request.",
         success: false,
       });
       return;
@@ -218,7 +292,7 @@ export default function BookingForm({ user, role, bookings }) {
 
     setIsSubmitting(true);
 
-    const currentYear = dayjs().year(); // 2026
+    const currentYear = dayjs().year();
     const datesToBook = formData.isRecurring
       ? generateRecurringDates(
           formData.date,
@@ -228,7 +302,7 @@ export default function BookingForm({ user, role, bookings }) {
       : [formData.date];
 
     try {
-      // 3. Get sequential ID
+      // Sequential ID
       const counterRef = doc(db, "counters", `bookings_${currentYear}`);
       const counterSnap = await getDoc(counterRef);
 
@@ -240,9 +314,7 @@ export default function BookingForm({ user, role, bookings }) {
       const formattedNum = String(nextNum).padStart(4, "0");
       const bId = `${currentYear}-${formattedNum}`;
 
-      // 4. Create Doc ID and Payload
-      const customDocId = `${bId}`;
-      const newDocRef = doc(db, "bookings", customDocId);
+      const newDocRef = doc(db, "bookings", bId);
 
       const bookingPayload = {
         ...formData,
@@ -261,18 +333,13 @@ export default function BookingForm({ user, role, bookings }) {
         approverNote: "",
       };
 
-      // 5. Save to Firestore
       await setDoc(newDocRef, bookingPayload);
       await setDoc(
         counterRef,
-        {
-          lastNumber: nextNum,
-          year: currentYear,
-        },
+        { lastNumber: nextNum, year: currentYear },
         { merge: true },
       );
 
-      // 6. Notifications
       await sendAdminNotification(db, bookingPayload, bId);
       await sendUserAcknowledgement(
         db,
@@ -286,6 +353,7 @@ export default function BookingForm({ user, role, bookings }) {
       setFormData(INITIAL_FORM_DATA(user));
       setAcceptedDisclaimer(false);
       setConflictedLocations([]);
+      setActiveStep(0);
     } catch (e) {
       console.error("Submission error:", e);
       setStatus({ error: e.message, success: false });
@@ -294,15 +362,113 @@ export default function BookingForm({ user, role, bookings }) {
     }
   };
 
+  /** Review step content */
+  const renderReview = () => {
+    const dates = formData.isRecurring
+      ? generateRecurringDates(
+          formData.date,
+          formData.endDate,
+          formData.recurrenceType,
+        )
+      : [formData.date];
+
+    const dateSummary = formData.isRecurring
+      ? `${dayjs(formData.date).format("ddd D MMM YYYY")} to ${dayjs(
+          formData.endDate,
+        ).format("ddd D MMM YYYY")}, ${formData.recurrenceType} (${
+          dates.length
+        } bookings)`
+      : dayjs(formData.date).format("ddd D MMM YYYY");
+
+    return (
+      <>
+        <Box sx={{ mb: 1 }}>
+          <ReviewRow
+            label="Name"
+            value={formData.fullName}
+            onEdit={() => goToStep(0)}
+          />
+          <ReviewRow label="Phone" value={formData.phoneNumber} />
+          <ReviewRow label="Organisation" value={buildJamaatLabel(formData)} />
+          <Divider />
+          <ReviewRow
+            label="Date"
+            value={dateSummary}
+            onEdit={() => goToStep(1)}
+          />
+          <ReviewRow
+            label="Time"
+            value={`${formData.fromTime} to ${formData.toTime}`}
+          />
+          <ReviewRow
+            label="Locations"
+            value={formData.locations.join(", ")}
+          />
+          <Divider />
+          <ReviewRow
+            label="Event"
+            value={formData.eventName}
+            onEdit={() => goToStep(2)}
+          />
+          <ReviewRow
+            label="Expected people"
+            value={String(formData.expectedPeople)}
+          />
+          <ReviewRow
+            label="Expected cars"
+            value={String(formData.expectedCars)}
+          />
+        </Box>
+
+        <Alert
+          icon={<InfoOutlined fontSize="small" />}
+          severity="info"
+          variant="outlined"
+          sx={{ my: 3 }}
+        >
+          <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>
+            Before you submit
+          </Typography>
+          <Box component="ul" sx={{ m: 0, pl: 2.25 }}>
+            <li>Jamaat Jalsa or meetings with Ameer Sb take precedence.</li>
+            <li>You are responsible for cleaning after the event.</li>
+            <li>No events on Fridays before 3:00 PM.</li>
+          </Box>
+        </Alert>
+
+        <Box
+          sx={{
+            p: 2,
+            borderRadius: 2.5,
+            bgcolor: "grey.50",
+            border: "1px solid",
+            borderColor: "divider",
+          }}
+        >
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={acceptedDisclaimer}
+                onChange={(e) => setAcceptedDisclaimer(e.target.checked)}
+              />
+            }
+            label="I understand and accept the conditions."
+          />
+        </Box>
+      </>
+    );
+  };
+
+  const stepSubtitle = [
+    "Tell us who is making the booking.",
+    "Pick a date and time first. Available locations update to match.",
+    "Tell us about the event.",
+    "Check everything before you submit.",
+  ][activeStep];
+
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
-      <Box>
-        {status.error && (
-          <Alert severity="error" sx={{ mb: 2.5 }} variant="outlined">
-            {status.error}
-          </Alert>
-        )}
-
+      <Box ref={topRef} sx={{ scrollMarginTop: 16 }}>
         {user ? (
           <Paper
             elevation={0}
@@ -314,14 +480,7 @@ export default function BookingForm({ user, role, bookings }) {
               boxShadow: "0px 10px 30px rgba(15,23,22,0.05)",
             }}
           >
-            <Box
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                gap: 1.5,
-                mb: 3,
-              }}
-            >
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 3 }}>
               <Box
                 sx={{
                   width: 44,
@@ -338,73 +497,107 @@ export default function BookingForm({ user, role, bookings }) {
               </Box>
               <Box>
                 <Typography variant="h6" sx={{ fontWeight: 700, lineHeight: 1.2 }}>
-                  Booking Details
+                  {STEPS[activeStep]}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Fields marked required must be completed before submitting.
+                  {stepSubtitle}
                 </Typography>
               </Box>
             </Box>
+
+            <Stepper activeStep={activeStep} alternativeLabel sx={{ mb: 3 }}>
+              {STEPS.map((label, i) => (
+                <Step key={label} completed={i < activeStep}>
+                  <StepLabel
+                    sx={{
+                      // On phones only the current step's label is shown
+                      "& .MuiStepLabel-label": {
+                        display: { xs: i === activeStep ? "block" : "none", sm: "block" },
+                      },
+                    }}
+                  >
+                    {label}
+                  </StepLabel>
+                </Step>
+              ))}
+            </Stepper>
 
             <Divider sx={{ mb: 3 }} />
 
-            <BookingFormFields
-              formData={formData}
-              setFormData={setFormData}
-              availableLocations={availableLocations}
-              role={role}
-              conflictedLocations={conflictedLocations}
-            />
+            {status.error && (
+              <Alert severity="error" sx={{ mb: 2.5 }} variant="outlined">
+                {status.error}
+              </Alert>
+            )}
 
-            <Alert
-              icon={<InfoOutlined fontSize="small" />}
-              severity="info"
-              variant="outlined"
-              sx={{ my: 3 }}
-            >
-              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>
-                Before you submit
-              </Typography>
-              <Box component="ul" sx={{ m: 0, pl: 2.25 }}>
-                <li>Jamaat Jalsa or meetings with Ameer Sb take precedence.</li>
-                <li>You are responsible for cleaning after the event.</li>
-                <li>No events on Fridays before 3:00 PM.</li>
-              </Box>
-            </Alert>
-
-            <Box
-              sx={{
-                p: 2,
-                borderRadius: 2.5,
-                bgcolor: "grey.50",
-                border: "1px solid",
-                borderColor: "divider",
-              }}
-            >
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={acceptedDisclaimer}
-                    onChange={(e) => setAcceptedDisclaimer(e.target.checked)}
-                  />
-                }
-                label="I understand and accept the conditions."
+            {activeStep === 0 && (
+              <BookingFormFields
+                section="about"
+                formData={formData}
+                setFormData={setFormData}
+                availableLocations={availableLocations}
+                role={role}
+                conflictedLocations={conflictedLocations}
               />
-            </Box>
+            )}
+            {activeStep === 1 && (
+              <BookingFormFields
+                section="when"
+                formData={formData}
+                setFormData={setFormData}
+                availableLocations={availableLocations}
+                role={role}
+                conflictedLocations={conflictedLocations}
+              />
+            )}
+            {activeStep === 2 && (
+              <BookingFormFields
+                section="event"
+                formData={formData}
+                setFormData={setFormData}
+                availableLocations={availableLocations}
+                role={role}
+                conflictedLocations={conflictedLocations}
+              />
+            )}
+            {activeStep === REVIEW_STEP && renderReview()}
 
-            <Button
-              fullWidth
-              variant="contained"
-              size="large"
-              sx={{ mt: 3, py: 1.6, fontSize: "1rem" }}
-              disabled={isSubmitting}
-              onClick={handleSend}
-              startIcon={
-                isSubmitting && <CircularProgress size={20} color="inherit" />
-              }
-            >
-              {isSubmitting ? "Submitting..." : "Submit Request"}
-            </Button>
+            <Box sx={{ display: "flex", gap: 1.5, mt: 3 }}>
+              {activeStep > 0 && (
+                <Button
+                  variant="outlined"
+                  size="large"
+                  onClick={handleBack}
+                  disabled={isSubmitting}
+                  sx={{ py: 1.6, flex: { xs: 1, sm: "0 0 auto" }, px: { sm: 4 } }}
+                >
+                  Back
+                </Button>
+              )}
+              {activeStep < REVIEW_STEP ? (
+                <Button
+                  variant="contained"
+                  size="large"
+                  onClick={handleNext}
+                  sx={{ py: 1.6, fontSize: "1rem", flex: 1 }}
+                >
+                  Next
+                </Button>
+              ) : (
+                <Button
+                  variant="contained"
+                  size="large"
+                  sx={{ py: 1.6, fontSize: "1rem", flex: 1 }}
+                  disabled={isSubmitting || !acceptedDisclaimer}
+                  onClick={handleSend}
+                  startIcon={
+                    isSubmitting && <CircularProgress size={20} color="inherit" />
+                  }
+                >
+                  {isSubmitting ? "Submitting..." : "Submit request"}
+                </Button>
+              )}
+            </Box>
           </Paper>
         ) : (
           <Alert severity="info">Please sign in to make a booking.</Alert>
