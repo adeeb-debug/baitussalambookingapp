@@ -19,3 +19,12 @@ export const JAMAAT_OPTIONS = [
     "Melbourne East",
     "Melbourne West",
 ];
+
+export const MAJLIS_OPTIONS = [ 
+    "Langwarrin",
+    "Clyde",
+    "Berwick",
+    "Melbourne East",
+    "Melbourne West",
+    "Region",
+];

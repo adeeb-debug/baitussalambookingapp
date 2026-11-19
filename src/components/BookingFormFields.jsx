@@ -19,7 +19,7 @@ import {
 } from "@mui/material";
 import { DatePicker, TimePicker } from "@mui/x-date-pickers";
 import dayjs from "dayjs";
-import { JAMAAT_OPTIONS } from "../utils/constants";
+import { JAMAAT_OPTIONS, MAJLIS_OPTIONS } from "../utils/constants";
 
 const AUXILIARIES = ["Khuddam", "Atfal", "Ansar", "Lajna", "Nasirat"];
 
@@ -226,7 +226,7 @@ export default function BookingFormFields({
 
               <MultiSelectField
                 label="Majlis Name (Select Multiple)"
-                options={JAMAAT_OPTIONS}
+                options={MAJLIS_OPTIONS}
                 value={formData.majlisNames || []}
                 onChange={handleChange("majlisNames")}
                 onBlur={() => markTouched("majlisNames")}
