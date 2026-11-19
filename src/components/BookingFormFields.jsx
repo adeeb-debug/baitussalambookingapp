@@ -14,10 +14,53 @@ import {
   Switch,
   Typography,
   Alert,
+  ToggleButton,
+  ToggleButtonGroup,
 } from "@mui/material";
 import { DatePicker, TimePicker } from "@mui/x-date-pickers";
 import dayjs from "dayjs";
 import { JAMAAT_OPTIONS } from "../utils/constants";
+
+const AUXILIARIES = ["Khuddam", "Atfal", "Ansar", "Lajna", "Nasirat"];
+
+/** Multi-select dropdown that shows the chosen values as chips */
+function MultiSelectField({
+  label,
+  options,
+  value,
+  onChange,
+  onBlur,
+  error,
+  helperText,
+  sx,
+}) {
+  return (
+    <FormControl fullWidth required error={error} sx={sx}>
+      <InputLabel>{label}</InputLabel>
+      <Select
+        multiple
+        value={value}
+        label={label}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={onBlur}
+        renderValue={(selected) => (
+          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+            {selected.map((v) => (
+              <Chip key={v} label={v} size="small" />
+            ))}
+          </Box>
+        )}
+      >
+        {options.map((name) => (
+          <MenuItem key={name} value={name}>
+            {name}
+          </MenuItem>
+        ))}
+      </Select>
+      {helperText && <FormHelperText>{helperText}</FormHelperText>}
+    </FormControl>
+  );
+}
 
 export default function BookingFormFields({
   formData,
@@ -50,13 +93,30 @@ export default function BookingFormFields({
     touched.phoneNumber &&
     !/^((04\d{8})|(614\d{8})|(0[2378]\d{8}))$/.test(formData.phoneNumber || "");
 
-    // Inside BookingFormFields.js
-useEffect(() => {
-  // If the form has been reset (fullName is empty), clear the touched markers
-  if (!formData.fullName && !formData.date && !formData.eventName) {
-    setTouched({});
-  }
-}, [formData]);
+  // Switching between Auxiliary and Jamaat clears the other side's selections
+  const handleOrganisationType = (_, value) => {
+    if (!value || value === formData.organisationType) return;
+    setFormData((prev) => ({
+      ...prev,
+      organisationType: value,
+      auxiliaries: [],
+      majlisNames: [],
+      jamaatNames: [],
+    }));
+    setTouched((prev) => ({
+      ...prev,
+      auxiliaries: false,
+      majlisNames: false,
+      jamaatNames: false,
+    }));
+  };
+
+  useEffect(() => {
+    // If the form has been reset (fullName is empty), clear the touched markers
+    if (!formData.fullName && !formData.date && !formData.eventName) {
+      setTouched({});
+    }
+  }, [formData]);
 
   return (
     <Box>
@@ -99,32 +159,86 @@ useEffect(() => {
         sx={{ mb: fieldSpacing }}
       />
 
-      {/* Jamaat */}
-      <FormControl
-        fullWidth
-        required
-        error={touched.jamaat && !formData.jamaat}
-        sx={{ mb: fieldSpacing }}
-      >
-        <InputLabel>Jamaat</InputLabel>
-        <Select
-          value={formData.jamaat}
-          label="Jamaat"
-          onChange={(e) => handleChange("jamaat")(e.target.value)}
-          onBlur={() => markTouched("jamaat")}
+      {/* Auxiliary / Jamaat */}
+      <Box sx={{ mb: fieldSpacing }}>
+        <Typography
+          variant="body2"
+          sx={{ fontWeight: 600, mb: 1, color: "text.secondary" }}
         >
-          {JAMAAT_OPTIONS.map((name) => (
-            <MenuItem key={name} value={name}>
-              {name}
-            </MenuItem>
-          ))}
-        </Select>
-        <FormHelperText>
-          {touched.jamaat && !formData.jamaat
-            ? "Please select a Jamaat"
-            : undefined}
-        </FormHelperText>
-      </FormControl>
+          Booking on behalf of *
+        </Typography>
+        <ToggleButtonGroup
+          exclusive
+          fullWidth
+          color="primary"
+          value={formData.organisationType || ""}
+          onChange={handleOrganisationType}
+        >
+          <ToggleButton
+            value="auxiliary"
+            sx={{ textTransform: "none", fontWeight: 600 }}
+          >
+            Auxiliary
+          </ToggleButton>
+          <ToggleButton
+            value="jamaat"
+            sx={{ textTransform: "none", fontWeight: 600 }}
+          >
+            Jamaat
+          </ToggleButton>
+        </ToggleButtonGroup>
+      </Box>
+
+      {formData.organisationType === "auxiliary" && (
+        <>
+          <MultiSelectField
+            label="Auxiliary (Select Multiple)"
+            options={AUXILIARIES}
+            value={formData.auxiliaries || []}
+            onChange={handleChange("auxiliaries")}
+            onBlur={() => markTouched("auxiliaries")}
+            error={touched.auxiliaries && !formData.auxiliaries?.length}
+            helperText={
+              touched.auxiliaries && !formData.auxiliaries?.length
+                ? "Select at least one auxiliary"
+                : undefined
+            }
+            sx={{ mb: fieldSpacing }}
+          />
+
+          <MultiSelectField
+            label="Majlis Name (Select Multiple)"
+            options={JAMAAT_OPTIONS}
+            value={formData.majlisNames || []}
+            onChange={handleChange("majlisNames")}
+            onBlur={() => markTouched("majlisNames")}
+            error={touched.majlisNames && !formData.majlisNames?.length}
+            helperText={
+              touched.majlisNames && !formData.majlisNames?.length
+                ? "Select at least one majlis"
+                : undefined
+            }
+            sx={{ mb: fieldSpacing }}
+          />
+        </>
+      )}
+
+      {formData.organisationType === "jamaat" && (
+        <MultiSelectField
+          label="Jamaat Name (Select Multiple)"
+          options={JAMAAT_OPTIONS}
+          value={formData.jamaatNames || []}
+          onChange={handleChange("jamaatNames")}
+          onBlur={() => markTouched("jamaatNames")}
+          error={touched.jamaatNames && !formData.jamaatNames?.length}
+          helperText={
+            touched.jamaatNames && !formData.jamaatNames?.length
+              ? "Select at least one jamaat"
+              : undefined
+          }
+          sx={{ mb: fieldSpacing }}
+        />
+      )}
 
       {/* Date */}
       <DatePicker
@@ -277,60 +391,79 @@ useEffect(() => {
             : "Only available locations will show for the date/time you have selected"}
         </FormHelperText>
 
-{/* In BookingFormFields.js */}
-{formData.locations.some(loc => conflictedLocations.some(c => c.location === loc)) && (
-  <Alert severity="error" sx={{ mt: 2 }}>
-    <Typography variant="subtitle2" sx={{ fontWeight: "bold", mb: 1 }}>
-      Booking Conflict Detected:
-    </Typography>
+        {formData.locations.some((loc) =>
+          conflictedLocations.some((c) => c.location === loc),
+        ) && (
+          <Alert severity="error" sx={{ mt: 2 }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: "bold", mb: 1 }}>
+              Booking Conflict Detected:
+            </Typography>
 
-    {(() => {
-      // 1. Pivot the data: Create a map of Date -> Array of Locations
-      const dateMap = {};
+            {(() => {
+              // 1. Pivot the data: Create a map of Date -> Array of Locations
+              const dateMap = {};
 
-      conflictedLocations
-        .filter(c => formData.locations.includes(c.location))
-        .forEach(c => {
-          c.dates.forEach(date => {
-            if (!dateMap[date]) dateMap[date] = new Set();
-            dateMap[date].add(c.location);
-          });
-        });
+              conflictedLocations
+                .filter((c) => formData.locations.includes(c.location))
+                .forEach((c) => {
+                  c.dates.forEach((date) => {
+                    if (!dateMap[date]) dateMap[date] = new Set();
+                    dateMap[date].add(c.location);
+                  });
+                });
 
-      // 2. Sort dates chronologically
-      const sortedDates = Object.keys(dateMap).sort();
+              // 2. Sort dates chronologically
+              const sortedDates = Object.keys(dateMap).sort();
 
-      return (
-        <Box component="ul" sx={{ m: 0, pl: 2 }}>
-          {sortedDates.map((date) => (
-            <li key={date} style={{ marginBottom: '12px' }}>
-              <Typography variant="body2" sx={{ fontWeight: 600, color: 'error.main' }}>
-                {dayjs(date).format("dddd, MMMM D, YYYY")}:
-              </Typography>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.5 }}>
-                {Array.from(dateMap[date]).map(loc => (
-                  <Chip 
-                    key={loc} 
-                    label={loc} 
-                    size="small" 
-                    color="error" 
-                    variant="outlined"
-                    sx={{ fontWeight: 500 }}
-                  />
-                ))}
-              </Box>
-            </li>
-          ))}
-        </Box>
-      );
-    })()}
-  </Alert>
-)}
+              return (
+                <Box component="ul" sx={{ m: 0, pl: 2 }}>
+                  {sortedDates.map((date) => (
+                    <li key={date} style={{ marginBottom: "12px" }}>
+                      <Typography
+                        variant="body2"
+                        sx={{ fontWeight: 600, color: "error.main" }}
+                      >
+                        {dayjs(date).format("dddd, MMMM D, YYYY")}:
+                      </Typography>
+                      <Box
+                        sx={{
+                          display: "flex",
+                          flexWrap: "wrap",
+                          gap: 0.5,
+                          mt: 0.5,
+                        }}
+                      >
+                        {Array.from(dateMap[date]).map((loc) => (
+                          <Chip
+                            key={loc}
+                            label={loc}
+                            size="small"
+                            color="error"
+                            variant="outlined"
+                            sx={{ fontWeight: 500 }}
+                          />
+                        ))}
+                      </Box>
+                    </li>
+                  ))}
+                </Box>
+              );
+            })()}
+          </Alert>
+        )}
       </FormControl>
 
-
-{/* --- RECURRING BOOKING SECTION --- */}
-      <Box sx={{ mb: fieldSpacing, p: 2, bgcolor: 'grey.50', borderRadius: 2, border: '1px dashed', borderColor: 'divider' }}>
+      {/* --- RECURRING BOOKING SECTION --- */}
+      <Box
+        sx={{
+          mb: fieldSpacing,
+          p: 2,
+          bgcolor: "grey.50",
+          borderRadius: 2,
+          border: "1px dashed",
+          borderColor: "divider",
+        }}
+      >
         <FormControlLabel
           control={
             <Switch
@@ -340,17 +473,28 @@ useEffect(() => {
                 if (e.target.checked) {
                   handleChange("recurrenceType")("weekly"); // Default
                   // Set default end date to 1 month from start date
-                  const defaultEnd = dayjs(formData.date).add(1, 'month').format("YYYY-MM-DD");
+                  const defaultEnd = dayjs(formData.date)
+                    .add(1, "month")
+                    .format("YYYY-MM-DD");
                   handleChange("endDate")(defaultEnd);
                 }
               }}
             />
           }
-          label={<Typography sx={{ fontWeight: 600 }}>Recurring Event?</Typography>}
+          label={
+            <Typography sx={{ fontWeight: 600 }}>Recurring Event?</Typography>
+          }
         />
 
         {formData.isRecurring && (
-          <Box sx={{ mt: 2, display: "flex", flexDirection: isMobile ? "column" : "row", gap: 2 }}>
+          <Box
+            sx={{
+              mt: 2,
+              display: "flex",
+              flexDirection: isMobile ? "column" : "row",
+              gap: 2,
+            }}
+          >
             <FormControl fullWidth size="small">
               <InputLabel>Frequency</InputLabel>
               <Select
@@ -368,20 +512,23 @@ useEffect(() => {
               label="Repeat Until"
               format="DD-MM-YYYY"
               value={formData.endDate ? dayjs(formData.endDate) : null}
-              minDate={dayjs(formData.date).add(1, 'day')} // Cannot end before/on start date
-              maxDate={dayjs(formData.date).add(6, 'month')} // Admin can limit this
-              onChange={(val) => handleChange("endDate")(val ? val.format("YYYY-MM-DD") : "")}
+              minDate={dayjs(formData.date).add(1, "day")} // Cannot end before/on start date
+              maxDate={dayjs(formData.date).add(6, "month")} // Admin can limit this
+              onChange={(val) =>
+                handleChange("endDate")(val ? val.format("YYYY-MM-DD") : "")
+              }
               slotProps={{
                 textField: {
                   fullWidth: true,
                   size: "small",
-                  helperText: "Up to 6 months in advance"
-                }
+                  helperText: "Up to 6 months in advance",
+                },
               }}
             />
           </Box>
         )}
       </Box>
+
       <TextField
         label="Event Name"
         required
@@ -406,7 +553,6 @@ useEffect(() => {
             : `${formData.eventName?.length || 0}/20`
         }
       />
-      
 
       {/* People / Cars */}
       <Box sx={{ display: "flex", gap: 2, mb: isMobile ? 2 : 4 }}>

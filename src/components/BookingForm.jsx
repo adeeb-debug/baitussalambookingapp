@@ -32,11 +32,33 @@ import BookingFormFields from "./BookingFormFields";
 import { generateRecurringDates } from "../utils/dateUtils";
 import { setDoc, doc, getDoc } from "firebase/firestore";
 
+/**
+ * Builds the single "jamaat" text that the rest of the app (emails,
+ * My Bookings, All Bookings, etc.) already reads.
+ *   Auxiliary -> "Khuddam, Lajna – Clyde, Cranbourne"
+ *   Jamaat    -> "Melbourne, Sydney"
+ */
+const buildJamaatLabel = (f) => {
+  if (f.organisationType === "auxiliary") {
+    const aux = (f.auxiliaries || []).join(", ");
+    const majlis = (f.majlisNames || []).join(", ");
+    return `${aux} – ${majlis}`;
+  }
+  if (f.organisationType === "jamaat") {
+    return (f.jamaatNames || []).join(", ");
+  }
+  return "";
+};
+
 export default function BookingForm({ user, role, bookings }) {
   const INITIAL_FORM_DATA = (user) => ({
     fullName: "",
     phoneNumber: "",
-    jamaat: "",
+    jamaat: "", // filled automatically on submit from the fields below
+    organisationType: "", // "auxiliary" | "jamaat"
+    auxiliaries: [],
+    majlisNames: [],
+    jamaatNames: [],
     date: "",
     fromTime: "",
     toTime: "",
@@ -57,12 +79,23 @@ export default function BookingForm({ user, role, bookings }) {
   const [successPopupOpen, setSuccessPopupOpen] = useState(false);
   const [conflictedLocations, setConflictedLocations] = useState([]);
 
+  /** 🏛️ ORGANISATION VALIDATION (auxiliary or jamaat) */
+  const isOrganisationValid = () => {
+    if (formData.organisationType === "auxiliary") {
+      return formData.auxiliaries.length > 0 && formData.majlisNames.length > 0;
+    }
+    if (formData.organisationType === "jamaat") {
+      return formData.jamaatNames.length > 0;
+    }
+    return false;
+  };
+
   /** 🔐 CENTRAL VALIDATION */
   const validateForm = () => {
     const baseValid =
       formData.fullName &&
       formData.phoneNumber &&
-      formData.jamaat &&
+      isOrganisationValid() &&
       formData.date &&
       formData.fromTime &&
       formData.toTime &&
@@ -142,120 +175,125 @@ export default function BookingForm({ user, role, bookings }) {
     formData.toTime,
     bookings,
   ]);
+
   /** 🚀 SUBMIT */
-  /** 🚀 SUBMIT */
-const handleSend = async () => {
-  setStatus({ error: "", success: false });
+  const handleSend = async () => {
+    setStatus({ error: "", success: false });
 
-  // 1. 🛑 CONFLICT GATEKEEPER
-  // Filter the conflicts list to only see ones affecting the user's current selection
-  const activeConflicts = conflictedLocations.filter((c) =>
-    formData.locations.includes(c.location)
-  );
+    // 1. 🛑 CONFLICT GATEKEEPER
+    // Filter the conflicts list to only see ones affecting the user's current selection
+    const activeConflicts = conflictedLocations.filter((c) =>
+      formData.locations.includes(c.location),
+    );
 
-  if (activeConflicts.length > 0) {
-    // Generate a detailed error string
-    const conflictDetails = activeConflicts
-      .map((c) => {
-        const dateList = c.dates.map((d) => dayjs(d).format("MMM D")).join(", ");
-        return `${c.location} is booked for "${c.eventName}" on ${dateList}`;
-      })
-      .join(" | ");
+    if (activeConflicts.length > 0) {
+      // Generate a detailed error string
+      const conflictDetails = activeConflicts
+        .map((c) => {
+          const dateList = c.dates
+            .map((d) => dayjs(d).format("MMM D"))
+            .join(", ");
+          return `${c.location} is booked for "${c.eventName}" on ${dateList}`;
+        })
+        .join(" | ");
 
-    setStatus({
-      error: `Booking Conflict: ${conflictDetails}. Please adjust your dates or locations.`,
-      success: false,
-    });
+      setStatus({
+        error: `Booking Conflict: ${conflictDetails}. Please adjust your dates or locations.`,
+        success: false,
+      });
 
-    // Scroll to top so the user sees the red Alert
-    window.scrollTo({ top: 0, behavior: "smooth" });
-    return; // Kill the process
-  }
-
-  // 2. Standard Validation
-  if (!validateForm() || !acceptedDisclaimer) {
-    setStatus({
-      error: "Please complete all fields and accept the disclaimer.",
-      success: false,
-    });
-    return;
-  }
-
-  setIsSubmitting(true);
-
-  const currentYear = dayjs().year(); // 2026
-  const datesToBook = formData.isRecurring
-    ? generateRecurringDates(
-        formData.date,
-        formData.endDate,
-        formData.recurrenceType
-      )
-    : [formData.date];
-
-  try {
-    // 3. Get sequential ID
-    const counterRef = doc(db, "counters", `bookings_${currentYear}`);
-    const counterSnap = await getDoc(counterRef);
-
-    let nextNum = 1;
-    if (counterSnap.exists()) {
-      nextNum = counterSnap.data().lastNumber + 1;
+      // Scroll to top so the user sees the red Alert
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return; // Kill the process
     }
 
-    const formattedNum = String(nextNum).padStart(4, "0");
-    const bId = `${currentYear}-${formattedNum}`;
+    // 2. Standard Validation
+    if (!validateForm() || !acceptedDisclaimer) {
+      setStatus({
+        error: "Please complete all fields and accept the disclaimer.",
+        success: false,
+      });
+      return;
+    }
 
-    // 4. Create Doc ID and Payload
-    const customDocId = `${bId}`;
-    const newDocRef = doc(db, "bookings", customDocId);
+    setIsSubmitting(true);
 
-    const bookingPayload = {
-      ...formData,
-      bookingId: bId,
-      status: "Pending",
-      requestedByEmail: user.email,
-      createdAt: new Date().toISOString(),
-      allDates: datesToBook,
-      date: datesToBook[0],
-      userNotified: false,
-      actionByEmail: "",
-      actionByName: "",
-      actionAt: null,
-      approverNote: "",
-    };
+    const currentYear = dayjs().year(); // 2026
+    const datesToBook = formData.isRecurring
+      ? generateRecurringDates(
+          formData.date,
+          formData.endDate,
+          formData.recurrenceType,
+        )
+      : [formData.date];
 
-    // 5. Save to Firestore
-    await setDoc(newDocRef, bookingPayload);
-    await setDoc(
-      counterRef,
-      {
-        lastNumber: nextNum,
-        year: currentYear,
-      },
-      { merge: true }
-    );
+    try {
+      // 3. Get sequential ID
+      const counterRef = doc(db, "counters", `bookings_${currentYear}`);
+      const counterSnap = await getDoc(counterRef);
 
-    // 6. Notifications
-    await sendAdminNotification(db, bookingPayload, bId);
-    await sendUserAcknowledgement(
-      db,
-      user.email,
-      formData.fullName,
-      bookingPayload,
-      bId
-    );
+      let nextNum = 1;
+      if (counterSnap.exists()) {
+        nextNum = counterSnap.data().lastNumber + 1;
+      }
 
-    setSuccessPopupOpen(true);
-    setFormData(INITIAL_FORM_DATA(user));
-    setAcceptedDisclaimer(false);
-    setConflictedLocations([]);
-  } catch (e) {
-    console.error("Submission error:", e);
-    setStatus({ error: e.message, success: false });
-  } finally {
-    setIsSubmitting(false);
-  }
-};
+      const formattedNum = String(nextNum).padStart(4, "0");
+      const bId = `${currentYear}-${formattedNum}`;
+
+      // 4. Create Doc ID and Payload
+      const customDocId = `${bId}`;
+      const newDocRef = doc(db, "bookings", customDocId);
+
+      const bookingPayload = {
+        ...formData,
+        // Keep the old single field populated so emails and booking lists still work
+        jamaat: buildJamaatLabel(formData),
+        bookingId: bId,
+        status: "Pending",
+        requestedByEmail: user.email,
+        createdAt: new Date().toISOString(),
+        allDates: datesToBook,
+        date: datesToBook[0],
+        userNotified: false,
+        actionByEmail: "",
+        actionByName: "",
+        actionAt: null,
+        approverNote: "",
+      };
+
+      // 5. Save to Firestore
+      await setDoc(newDocRef, bookingPayload);
+      await setDoc(
+        counterRef,
+        {
+          lastNumber: nextNum,
+          year: currentYear,
+        },
+        { merge: true },
+      );
+
+      // 6. Notifications
+      await sendAdminNotification(db, bookingPayload, bId);
+      await sendUserAcknowledgement(
+        db,
+        user.email,
+        formData.fullName,
+        bookingPayload,
+        bId,
+      );
+
+      setSuccessPopupOpen(true);
+      setFormData(INITIAL_FORM_DATA(user));
+      setAcceptedDisclaimer(false);
+      setConflictedLocations([]);
+    } catch (e) {
+      console.error("Submission error:", e);
+      setStatus({ error: e.message, success: false });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
       <Box>

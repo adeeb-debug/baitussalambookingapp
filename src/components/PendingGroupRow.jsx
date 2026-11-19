@@ -23,6 +23,7 @@ import {
   DirectionsCar,
   Send,
   DeleteOutline,
+  EditOutlined,
   LocationOn,
   CalendarMonth,
   Notes,
@@ -37,6 +38,7 @@ export default function PendingGroupRow({
   handleGroupAction,
   handleSendEmail,
   handleDeleteBooking,
+  handleEditBooking,
   individualActionLoadingId,
   groupActionLoadingId,
   role,
@@ -50,7 +52,7 @@ export default function PendingGroupRow({
 
   return (
     <>
-      <TableRow hover sx={{ '& > *': { borderBottom: 'unset' } }}>
+      <TableRow hover sx={{ "& > *": { borderBottom: "unset" } }}>
         <TableCell width={50}>
           <IconButton size="small" onClick={() => setExpanded(!expanded)}>
             {expanded ? <ExpandMore /> : <ChevronRight />}
@@ -66,7 +68,9 @@ export default function PendingGroupRow({
 
         {/* 2. Event */}
         <TableCell>
-          <Typography fontWeight={600}>{group.eventName || "Unnamed Event"}</Typography>
+          <Typography fontWeight={600}>
+            {group.eventName || "Unnamed Event"}
+          </Typography>
         </TableCell>
 
         {/* 3. Date / Time */}
@@ -86,18 +90,33 @@ export default function PendingGroupRow({
 
         {/* 5. Status */}
         <TableCell align="center">
-          <Chip 
-            label={group.status} 
+          <Chip
+            label={group.status}
             size="small"
-            color={group.status === "Approved" ? "success" : group.status === "Rejected" ? "error" : "warning"}
+            color={
+              group.status === "Approved"
+                ? "success"
+                : group.status === "Rejected"
+                  ? "error"
+                  : "warning"
+            }
             variant="contained"
-            sx={{ fontWeight: 700, textTransform: 'uppercase', fontSize: '10px' }}
+            sx={{
+              fontWeight: 700,
+              textTransform: "uppercase",
+              fontSize: "10px",
+            }}
           />
         </TableCell>
 
         {/* 6. Actions */}
         <TableCell align="center">
-          <Stack direction="row" spacing={1} justifyContent="center" alignItems="center">
+          <Stack
+            direction="row"
+            spacing={1}
+            justifyContent="center"
+            alignItems="center"
+          >
             {role === "admin" && (
               <>
                 {isPending ? (
@@ -109,7 +128,7 @@ export default function PendingGroupRow({
                         variant="contained"
                         onClick={() => handleGroupAction(group, "Approved")}
                         disabled={isGroupLoading}
-                        sx={{ minWidth: '40px' }}
+                        sx={{ minWidth: "40px" }}
                       >
                         <CheckCircleOutline fontSize="small" />
                       </Button>
@@ -121,7 +140,7 @@ export default function PendingGroupRow({
                         variant="contained"
                         onClick={() => handleGroupAction(group, "Rejected")}
                         disabled={isGroupLoading}
-                        sx={{ minWidth: '40px' }}
+                        sx={{ minWidth: "40px" }}
                       >
                         <CancelOutlined fontSize="small" />
                       </Button>
@@ -136,11 +155,29 @@ export default function PendingGroupRow({
                     onClick={() => handleSendEmail(group)}
                     disabled={isGroupLoading}
                   >
-                    {isGroupLoading ? "..." : isAlreadyNotified ? "Resend" : "Email"}
+                    {isGroupLoading
+                      ? "..."
+                      : isAlreadyNotified
+                        ? "Resend"
+                        : "Email"}
                   </Button>
                 )}
-                
+
                 <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
+
+                <Tooltip title="Edit Booking">
+                  <IconButton
+                    size="small"
+                    color="primary"
+                    onClick={() => handleEditBooking(group)}
+                    disabled={
+                      isGroupLoading ||
+                      individualActionLoadingId === group.groupId
+                    }
+                  >
+                    <EditOutlined fontSize="small" />
+                  </IconButton>
+                </Tooltip>
 
                 <Tooltip title="Delete Booking">
                   <IconButton
@@ -167,7 +204,14 @@ export default function PendingGroupRow({
             {group.actionByName || "-"}
           </Typography>
           {group.actionAt && (
-            <Typography variant="caption" sx={{ display: "block", color: "text.disabled", fontSize: "10px" }}>
+            <Typography
+              variant="caption"
+              sx={{
+                display: "block",
+                color: "text.disabled",
+                fontSize: "10px",
+              }}
+            >
               {dayjs(group.actionAt).format("DD/MM/YYYY")}
             </Typography>
           )}
@@ -176,60 +220,197 @@ export default function PendingGroupRow({
 
       {/* --- EXPANDED DETAILS AREA --- */}
       <TableRow>
-        <TableCell colSpan={8} sx={{ p: 0, borderBottom: expanded ? '1px solid rgba(224, 224, 224, 1)' : 'none' }}>
+        <TableCell
+          colSpan={8}
+          sx={{
+            p: 0,
+            borderBottom: expanded
+              ? "1px solid rgba(224, 224, 224, 1)"
+              : "none",
+          }}
+        >
           <Collapse in={expanded} timeout="auto" unmountOnExit>
-            <Box sx={{ p: 3, bgcolor: theme.palette.grey[50], borderLeft: `4px solid ${theme.palette.primary.main}`, m: 1, borderRadius: 1 }}>
+            <Box
+              sx={{
+                p: 3,
+                bgcolor: theme.palette.grey[50],
+                borderLeft: `4px solid ${theme.palette.primary.main}`,
+                m: 1,
+                borderRadius: 1,
+              }}
+            >
               <Grid container spacing={3}>
-                
                 {/* 1. Contact & Logistics (Moved from main table) */}
                 <Grid item xs={12} md={3}>
-                  <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 700, display: 'flex', alignItems: 'center' }}>
+                  <Typography
+                    variant="subtitle2"
+                    sx={{
+                      mb: 1,
+                      fontWeight: 700,
+                      display: "flex",
+                      alignItems: "center",
+                    }}
+                  >
                     Contact & Logistics
                   </Typography>
                   <Stack spacing={1}>
-                    <Box sx={{ display: 'flex', alignItems: 'center' }}><Phone fontSize="inherit" sx={{ mr: 1, color: 'text.secondary' }} /> {group.phoneNumber || "N/A"}</Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center' }}><Home fontSize="inherit" sx={{ mr: 1, color: 'text.secondary' }} /> {group.jamaat || "N/A"}</Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center' }}><People fontSize="inherit" sx={{ mr: 1, color: 'text.secondary' }} /> {group.expectedPeople || 0} People</Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center' }}><DirectionsCar fontSize="inherit" sx={{ mr: 1, color: 'text.secondary' }} /> {group.expectedCars || 0} Cars</Box>
+                    <Box sx={{ display: "flex", alignItems: "center" }}>
+                      <Phone
+                        fontSize="inherit"
+                        sx={{ mr: 1, color: "text.secondary" }}
+                      />{" "}
+                      {group.phoneNumber || "N/A"}
+                    </Box>
+                    <Box sx={{ display: "flex", alignItems: "flex-start" }}>
+                      <Home
+                        fontSize="inherit"
+                        sx={{ mr: 1, mt: 0.4, color: "text.secondary" }}
+                      />
+                      <Box>
+                        {group.organisationType === "auxiliary" &&
+                        group.auxiliaries?.length ? (
+                          <>
+                            <Typography variant="body2">
+                              {group.auxiliaries.join(", ")}
+                            </Typography>
+                            <Typography
+                              variant="caption"
+                              color="text.secondary"
+                            >
+                              Majlis: {group.majlisNames?.join(", ")}
+                            </Typography>
+                          </>
+                        ) : (
+                          <Typography variant="body2">
+                            {group.jamaat || "N/A"}
+                          </Typography>
+                        )}
+                      </Box>
+                    </Box>{" "}
+                    <Box sx={{ display: "flex", alignItems: "center" }}>
+                      <People
+                        fontSize="inherit"
+                        sx={{ mr: 1, color: "text.secondary" }}
+                      />{" "}
+                      {group.expectedPeople || 0} People
+                    </Box>
+                    <Box sx={{ display: "flex", alignItems: "center" }}>
+                      <DirectionsCar
+                        fontSize="inherit"
+                        sx={{ mr: 1, color: "text.secondary" }}
+                      />{" "}
+                      {group.expectedCars || 0} Cars
+                    </Box>
                   </Stack>
                 </Grid>
 
                 {/* 2. Locations */}
                 <Grid item xs={12} md={3}>
-                  <Typography variant="subtitle2" sx={{ mb: 1, display: 'flex', alignItems: 'center', fontWeight: 700 }}>
-                    <LocationOn fontSize="small" sx={{ mr: 1, color: 'primary.main' }} /> Locations
+                  <Typography
+                    variant="subtitle2"
+                    sx={{
+                      mb: 1,
+                      display: "flex",
+                      alignItems: "center",
+                      fontWeight: 700,
+                    }}
+                  >
+                    <LocationOn
+                      fontSize="small"
+                      sx={{ mr: 1, color: "primary.main" }}
+                    />{" "}
+                    Locations
                   </Typography>
                   <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                     {group.locations?.map((loc) => (
-                      <Chip key={loc} label={loc} size="small" variant="outlined" />
-                    )) || <Typography variant="caption">No locations specified</Typography>}
+                      <Chip
+                        key={loc}
+                        label={loc}
+                        size="small"
+                        variant="outlined"
+                      />
+                    )) || (
+                      <Typography variant="caption">
+                        No locations specified
+                      </Typography>
+                    )}
                   </Stack>
                 </Grid>
 
                 {/* 3. Dates (For Recurring) */}
                 <Grid item xs={12} md={3}>
-                  <Typography variant="subtitle2" sx={{ mb: 1, display: 'flex', alignItems: 'center', fontWeight: 700 }}>
-                    <CalendarMonth fontSize="small" sx={{ mr: 1, color: 'primary.main' }} /> All Dates
+                  <Typography
+                    variant="subtitle2"
+                    sx={{
+                      mb: 1,
+                      display: "flex",
+                      alignItems: "center",
+                      fontWeight: 700,
+                    }}
+                  >
+                    <CalendarMonth
+                      fontSize="small"
+                      sx={{ mr: 1, color: "primary.main" }}
+                    />{" "}
+                    All Dates
                   </Typography>
-                  <Box sx={{ maxHeight: 100, overflowY: 'auto', bgcolor: 'white', p: 1, borderRadius: 1, border: '1px solid #eee' }}>
+                  <Box
+                    sx={{
+                      maxHeight: 100,
+                      overflowY: "auto",
+                      bgcolor: "white",
+                      p: 1,
+                      borderRadius: 1,
+                      border: "1px solid #eee",
+                    }}
+                  >
                     {group.allDates?.map((d) => (
-                      <Typography key={d} variant="caption" sx={{ display: 'block' }}>
+                      <Typography
+                        key={d}
+                        variant="caption"
+                        sx={{ display: "block" }}
+                      >
                         • {dayjs(d).format("DD/MM/YYYY")}
                       </Typography>
-                    )) || <Typography variant="body2">{dayjs(group.date).format("DD/MM/YYYY")}</Typography>}
+                    )) || (
+                      <Typography variant="body2">
+                        {dayjs(group.date).format("DD/MM/YYYY")}
+                      </Typography>
+                    )}
                   </Box>
                 </Grid>
 
                 {/* 4. Notes */}
                 <Grid item xs={12} md={3}>
-                   <Typography variant="subtitle2" sx={{ mb: 1, display: 'flex', alignItems: 'center', fontWeight: 700 }}>
-                    <Notes fontSize="small" sx={{ mr: 1, color: 'primary.main' }} /> Admin Notes
+                  <Typography
+                    variant="subtitle2"
+                    sx={{
+                      mb: 1,
+                      display: "flex",
+                      alignItems: "center",
+                      fontWeight: 700,
+                    }}
+                  >
+                    <Notes
+                      fontSize="small"
+                      sx={{ mr: 1, color: "primary.main" }}
+                    />{" "}
+                    Admin Notes
                   </Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ fontStyle: group.approverNote ? 'normal' : 'italic', bgcolor: 'white', p: 1, borderRadius: 1, border: '1px solid #eee' }}>
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{
+                      fontStyle: group.approverNote ? "normal" : "italic",
+                      bgcolor: "white",
+                      p: 1,
+                      borderRadius: 1,
+                      border: "1px solid #eee",
+                    }}
+                  >
                     {group.approverNote || "No notes added."}
                   </Typography>
                 </Grid>
-
               </Grid>
             </Box>
           </Collapse>

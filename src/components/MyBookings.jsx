@@ -10,7 +10,7 @@ import {
   Divider,
   Container,
   Stack,
-  Paper
+  Paper,
 } from "@mui/material";
 import PhoneIcon from "@mui/icons-material/Phone";
 import EventIcon from "@mui/icons-material/Event";
@@ -19,60 +19,77 @@ import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import CancelOutlinedIcon from "@mui/icons-material/CancelOutlined";
 import AccountTreeIcon from "@mui/icons-material/AccountTree";
+import HomeIcon from "@mui/icons-material/Home";
+
 
 /** Helper functions */
 const getStatusIcon = (status) => {
   switch (status) {
-    case "Approved": return <CheckCircleOutlineIcon />;
+    case "Approved":
+      return <CheckCircleOutlineIcon />;
     case "Pending":
-    case "In Review": return <WarningAmberIcon />;
+    case "In Review":
+      return <WarningAmberIcon />;
     case "Rejected":
-    case "Cancelled": return <CancelOutlinedIcon />;
-    case "Partially Approved": return <AccountTreeIcon />;
-    default: return null;
+    case "Cancelled":
+      return <CancelOutlinedIcon />;
+    case "Partially Approved":
+      return <AccountTreeIcon />;
+    default:
+      return null;
   }
 };
 
 const getStatusColor = (status) => {
   switch (status) {
-    case "Approved": return "success";
+    case "Approved":
+      return "success";
     case "Pending":
-    case "In Review": return "warning";
+    case "In Review":
+      return "warning";
     case "Rejected":
-    case "Cancelled": return "error";
-    case "Partially Approved": return "secondary";
-    default: return "default";
+    case "Cancelled":
+      return "error";
+    case "Partially Approved":
+      return "secondary";
+    default:
+      return "default";
   }
 };
 
 const calculateGroupStatus = (bookings) => {
-  const statuses = bookings.map(b => b.status);
+  const statuses = bookings.map((b) => b.status);
   const totalCount = statuses.length;
 
-  const isPending = statuses.some(s => s === "Pending");
-  const isApproved = statuses.some(s => s === "Approved");
-  const isRejectedOrCancelled = statuses.some(s => s === "Rejected" || s === "Cancelled");
+  const isPending = statuses.some((s) => s === "Pending");
+  const isApproved = statuses.some((s) => s === "Approved");
+  const isRejectedOrCancelled = statuses.some(
+    (s) => s === "Rejected" || s === "Cancelled",
+  );
 
-  const approvedCount = statuses.filter(s => s === "Approved").length;
-  const rejectedCount = statuses.filter(s => s === "Rejected" || s === "Cancelled").length;
+  const approvedCount = statuses.filter((s) => s === "Approved").length;
+  const rejectedCount = statuses.filter(
+    (s) => s === "Rejected" || s === "Cancelled",
+  ).length;
 
-  if (isPending) return "In Review"; 
+  if (isPending) return "In Review";
   if (approvedCount === totalCount) return "Approved";
   if (rejectedCount === totalCount) return "Rejected";
   if (isApproved && isRejectedOrCancelled) return "Partially Approved";
 
-  return "In Review"; 
+  return "In Review";
 };
 
 export default function MyBookings({ user, bookings, loading }) {
-
   const groupedUserBookings = useMemo(() => {
     if (!user || !bookings) return [];
 
-    const userBookings = bookings.filter(b => b.requestedByEmail === user.email);
+    const userBookings = bookings.filter(
+      (b) => b.requestedByEmail === user.email,
+    );
     const grouped = {};
 
-    userBookings.forEach(b => {
+    userBookings.forEach((b) => {
       const groupId = b.groupId || "no_group_" + b.id;
       if (!grouped[groupId]) {
         grouped[groupId] = {
@@ -83,9 +100,11 @@ export default function MyBookings({ user, bookings, loading }) {
           fromTime: b.fromTime,
           toTime: b.toTime,
           phoneNumber: b.phoneNumber,
+          jamaat: b.jamaat,
           bookings: [],
           rejectionReason: null,
-          approverNote: b.approverNote || null
+          approverNote: b.approverNote || null,
+          
         };
       }
       grouped[groupId].bookings.push(b);
@@ -94,16 +113,18 @@ export default function MyBookings({ user, bookings, loading }) {
       }
     });
 
-    Object.values(grouped).forEach(group => {
+    Object.values(grouped).forEach((group) => {
       group.status = calculateGroupStatus(group.bookings);
     });
 
-    return Object.values(grouped).sort((a, b) => new Date(b.date) - new Date(a.date));
+    return Object.values(grouped).sort(
+      (a, b) => new Date(b.date) - new Date(a.date),
+    );
   }, [user, bookings]);
 
   if (!user) {
     return (
-      <Box sx={{ mt: 4, px: { xs: 2, sm: 3 }, width: '100%' }}>
+      <Box sx={{ mt: 4, px: { xs: 2, sm: 3 }, width: "100%" }}>
         <Alert severity="info" variant="outlined" sx={{ borderRadius: 2 }}>
           Please Sign In to view your booking requests.
         </Alert>
@@ -113,7 +134,6 @@ export default function MyBookings({ user, bookings, loading }) {
 
   return (
     <Container maxWidth="lg" sx={{ pb: 4, px: { xs: 2, sm: 3 } }}>
-
       {loading ? (
         <Box sx={{ display: "flex", justifyContent: "center", py: 5 }}>
           <CircularProgress size={32} />
@@ -124,8 +144,23 @@ export default function MyBookings({ user, bookings, loading }) {
         </Alert>
       ) : (
         <List sx={{ display: "flex", flexDirection: "column", gap: 3, p: 0 }}>
-          {groupedUserBookings.map(group => {
+          {groupedUserBookings.map((group) => {
             const statusColor = getStatusColor(group.status);
+
+            // Flatten and collect all location/status pairs from the group's bookings
+            const allLocations = group.bookings.flatMap((b) => {
+              const locs = Array.isArray(b.locations)
+                ? b.locations
+                : [b.location || b.locationName || "Location"];
+              return locs.map((loc) => ({ name: loc, status: b.status }));
+            });
+
+            const approvedLocations = allLocations.filter(
+              (item) => item.status === "Approved",
+            );
+            const otherLocations = allLocations.filter(
+              (item) => item.status !== "Approved",
+            );
 
             return (
               <ListItem key={group.groupId} disablePadding>
@@ -140,13 +175,26 @@ export default function MyBookings({ user, bookings, loading }) {
                     flexDirection: { xs: "column", md: "row" },
                     gap: { xs: 2, md: 0 },
                     borderLeft: 4,
-                    borderColor: `${statusColor}.main`
+                    borderColor: `${statusColor}.main`,
                   }}
                 >
                   {/* Left: Event Info */}
                   <Box sx={{ flex: 1 }}>
-                    <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
-                      <Typography variant="h6" sx={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 1 }}>
+                    <Stack
+                      direction="row"
+                      alignItems="center"
+                      justifyContent="space-between"
+                      sx={{ mb: 1 }}
+                    >
+                      <Typography
+                        variant="h6"
+                        sx={{
+                          fontWeight: 700,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 1,
+                        }}
+                      >
                         <EventIcon color="primary" fontSize="small" />
                         {group.eventName || "Unnamed Event"}
                       </Typography>
@@ -157,48 +205,145 @@ export default function MyBookings({ user, bookings, loading }) {
                         label={group.status}
                         color={statusColor}
                         size="small"
-                        sx={{ display: { xs: "flex", md: "none" }, fontWeight: 600 }}
+                        sx={{
+                          display: { xs: "flex", md: "none" },
+                          fontWeight: 600,
+                        }}
                       />
                     </Stack>
 
                     <Stack spacing={1}>
                       <Stack direction="row" spacing={1} alignItems="center">
-                        <AccessTimeIcon sx={{ fontSize: 18, color: "text.secondary" }} />
+                        <AccessTimeIcon
+                          sx={{ fontSize: 18, color: "text.secondary" }}
+                        />
                         <Typography variant="body2" sx={{ fontWeight: 600 }}>
                           {group.date} | {group.fromTime} - {group.toTime}
                         </Typography>
                       </Stack>
                       <Stack direction="row" spacing={1} alignItems="center">
-                        <PhoneIcon sx={{ fontSize: 18, color: "text.secondary" }} />
+                        <PhoneIcon
+                          sx={{ fontSize: 18, color: "text.secondary" }}
+                        />
                         <Typography variant="body2" color="text.secondary">
                           {group.phoneNumber}
                         </Typography>
+
+                        {group.jamaat && (
+                          <Stack
+                            direction="row"
+                            spacing={1}
+                            alignItems="center"
+                          >
+                            <HomeIcon
+                              sx={{ fontSize: 18, color: "text.secondary" }}
+                            />
+                            <Typography variant="body2" color="text.secondary">
+                              {group.jamaat}
+                            </Typography>
+                          </Stack>
+                        )}
                       </Stack>
                     </Stack>
 
                     <Divider sx={{ my: 2 }} />
 
-                    <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, fontSize: '0.75rem', color: "text.secondary", textTransform: 'uppercase' }}>
-                      Locations ({group.bookings.length})
-                    </Typography>
-                    <Stack direction="row" spacing={1} flexWrap="wrap">
-                      {group.bookings.map(b => (
-                        <Chip
-                          key={b.id}
-                          label={`${b.location}: ${b.status}`}
-                          variant="outlined"
-                          size="small"
-                          color={getStatusColor(b.status)}
-                          sx={{ fontWeight: 600, fontSize: '0.7rem', mb: 0.5 }}
-                        />
-                      ))}
+                    {/* Categorized Location Lists */}
+                    <Stack spacing={2}>
+                      {approvedLocations.length > 0 && (
+                        <Box>
+                          <Typography
+                            variant="subtitle2"
+                            sx={{
+                              fontWeight: 700,
+                              mb: 1, // Increased bottom margin for header separation
+                              fontSize: "0.75rem",
+                              color: "success.main",
+                              textTransform: "uppercase",
+                            }}
+                          >
+                            Approved ({approvedLocations.length})
+                          </Typography>
+                          <Stack
+                            direction="row"
+                            spacing={1}
+                            useFlexGap
+                            flexWrap="wrap"
+                          >
+                            {approvedLocations.map((item, index) => (
+                              <Chip
+                                key={`approved-${index}`}
+                                label={item.name}
+                                variant="outlined"
+                                size="small"
+                                color="success"
+                                sx={{
+                                  fontWeight: 600,
+                                  fontSize: "0.7rem",
+                                }}
+                              />
+                            ))}
+                          </Stack>
+                        </Box>
+                      )}
+
+                      {otherLocations.length > 0 && (
+                        <Box>
+                          <Typography
+                            variant="subtitle2"
+                            sx={{
+                              fontWeight: 700,
+                              mb: 1,
+                              fontSize: "0.75rem",
+                              color: "error.main",
+                              textTransform: "uppercase",
+                            }}
+                          >
+                            Rejected / Pending ({otherLocations.length})
+                          </Typography>
+                          <Stack
+                            direction="row"
+                            spacing={1}
+                            useFlexGap
+                            flexWrap="wrap"
+                          >
+                            {otherLocations.map((item, index) => (
+                              <Chip
+                                key={`other-${index}`}
+                                label={`${item.name}: ${item.status}`}
+                                variant="outlined"
+                                size="small"
+                                color={getStatusColor(item.status)}
+                                sx={{
+                                  fontWeight: 600,
+                                  fontSize: "0.7rem",
+                                }}
+                              />
+                            ))}
+                          </Stack>
+                        </Box>
+                      )}
                     </Stack>
                   </Box>
 
                   {/* Right: Desktop Status & Feedback */}
-                  <Box sx={{ width: { xs: "100%", md: 200 }, mt: { xs: 2, md: 0 } }}>
-                    <Box sx={{ display: { xs: "none", md: "block" }, mb: group.rejectionReason ? 1 : 0 }}>
-                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
+                  <Box
+                    sx={{
+                      width: { xs: "100%", md: 200 },
+                      mt: { xs: 2, md: 0 },
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        display: { xs: "none", md: "block" },
+                        mb: group.rejectionReason ? 1 : 0,
+                      }}
+                    >
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        sx={{ fontWeight: 700 }}
+                      >
                         OVERALL STATUS
                       </Typography>
                       <Chip
@@ -210,11 +355,21 @@ export default function MyBookings({ user, bookings, loading }) {
                     </Box>
 
                     {group.approverNote && (
-                      <Alert severity="error" icon={false} sx={{ mt: 1, py: 0.5, px: 1.5, borderRadius: 2 }}>
-                        <Typography variant="caption" sx={{ fontWeight: 800, display: 'block' }}>
+                      <Alert
+                        severity="error"
+                        icon={false}
+                        sx={{ mt: 1, py: 0.5, px: 1.5, borderRadius: 2 }}
+                      >
+                        <Typography
+                          variant="caption"
+                          sx={{ fontWeight: 800, display: "block" }}
+                        >
                           Approver Note:
                         </Typography>
-                        <Typography variant="body2" sx={{ fontSize: '0.8rem', fontStyle: 'italic' }}>
+                        <Typography
+                          variant="body2"
+                          sx={{ fontSize: "0.8rem", fontStyle: "italic" }}
+                        >
                           "{group.approverNote}"
                         </Typography>
                       </Alert>
