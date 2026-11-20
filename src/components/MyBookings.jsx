@@ -21,7 +21,6 @@ import CancelOutlinedIcon from "@mui/icons-material/CancelOutlined";
 import AccountTreeIcon from "@mui/icons-material/AccountTree";
 import HomeIcon from "@mui/icons-material/Home";
 
-
 /** Helper functions */
 const getStatusIcon = (status) => {
   switch (status) {
@@ -84,8 +83,9 @@ export default function MyBookings({ user, bookings, loading }) {
   const groupedUserBookings = useMemo(() => {
     if (!user || !bookings) return [];
 
+    const currentEmail = user.email?.toLowerCase();
     const userBookings = bookings.filter(
-      (b) => b.requestedByEmail === user.email,
+      (b) => b.requestedByEmail?.toLowerCase() === currentEmail,
     );
     const grouped = {};
 
@@ -104,7 +104,6 @@ export default function MyBookings({ user, bookings, loading }) {
           bookings: [],
           rejectionReason: null,
           approverNote: b.approverNote || null,
-          
         };
       }
       grouped[groupId].bookings.push(b);

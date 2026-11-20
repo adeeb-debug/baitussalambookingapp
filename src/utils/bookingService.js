@@ -170,8 +170,6 @@ export const sendAdminNotification = async (db, formData, bookingId) => {
       .map((doc) => doc.data().email)
       .filter((email) => !!email);
 
-    // DEBUG LOG
-    console.log(`Found ${adminEmails.length} admins to notify:`, adminEmails);
 
     if (adminEmails.length === 0) {
       console.warn("No admins found in Firestore 'users' collection with role 'admin'.");
@@ -280,7 +278,6 @@ export const sendAdminNotification = async (db, formData, bookingId) => {
       addDoc(collection(db, "mail"), { to: email, message }),
     );
     await Promise.all(mailPromises);
-    console.log("Admin notification emails queued successfully.");
   } catch (error) {
     console.error("CRITICAL ERROR in sendAdminNotification:", error);
   }

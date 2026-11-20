@@ -36,12 +36,22 @@ export const VIEWS = {
   BOOKINGS_CALENDAR: "/calendar",
 };
 
+export const ROLES = {
+  ADMIN: "admin",
+  USER: "user",
+  SUBSCRIBER: "subscriber",
+};
+
+export const DEFAULT_CALENDAR_ROLES = [ROLES.SUBSCRIBER, ROLES.ADMIN];
+
 export const SIDEBAR_WIDTH = LAYOUT.sidebarWidth;
 
 function getInitials(user) {
   const name = user?.displayName || user?.email || "U";
   const parts = name.split(/[ @.]/).filter(Boolean);
-  return (parts[0]?.[0] || "U").toUpperCase() + (parts[1]?.[0] || "").toUpperCase();
+  return (
+    (parts[0]?.[0] || "U").toUpperCase() + (parts[1]?.[0] || "").toUpperCase()
+  );
 }
 
 export default function Navigation({
@@ -50,26 +60,52 @@ export default function Navigation({
   isDrawerOpen,
   setIsDrawerOpen,
   role,
+  isAuthorized = false,
+  calendarRoles = DEFAULT_CALENDAR_ROLES,
   onLogout,
 }) {
   const theme = useTheme();
   const location = useLocation();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
 
+  const normalizedRole = role?.toLowerCase();
+
   const navigationItems = [
     ...(user
       ? [
-          { name: "Request a Booking", path: "/", icon: <AddCircleOutline /> },
-          { name: "My Bookings", path: "/my-bookings", icon: <History /> },
+          {
+            name: "Request a Booking",
+            path: VIEWS.REQUEST_BOOKING,
+            icon: <AddCircleOutline />,
+          },
+          {
+            name: "My Bookings",
+            path: VIEWS.MY_BOOKINGS,
+            icon: <History />,
+          },
         ]
       : []),
-    ...(["admin", "user", "fyi"].includes(role)
-      ? [{ name: "Calendar", path: "/calendar", icon: <CalendarMonth /> }]
-      : []),
-    ...(role === "admin"
+    ...(isAuthorized && calendarRoles.includes(normalizedRole)
       ? [
-          { name: "All Bookings", path: "/all-bookings", icon: <Dashboard /> },
-          { name: "User Manager", path: "/user-manager", icon: <People /> },
+          {
+            name: "Calendar",
+            path: VIEWS.BOOKINGS_CALENDAR,
+            icon: <CalendarMonth />,
+          },
+        ]
+      : []),
+    ...(isAuthorized && normalizedRole === ROLES.ADMIN
+      ? [
+          {
+            name: "All Bookings",
+            path: VIEWS.ALL_BOOKINGS,
+            icon: <Dashboard />,
+          },
+          {
+            name: "User Manager",
+            path: VIEWS.USER_MANAGER,
+            icon: <People />,
+          },
         ]
       : []),
   ];
@@ -211,7 +247,7 @@ export default function Navigation({
             <Typography variant="body2" sx={{ fontWeight: 700 }} noWrap>
               {user.displayName || user.email?.split("@")[0]}
             </Typography>
-            {role === "admin" && (
+            {normalizedRole === ROLES.ADMIN && (
               <Chip
                 label="Admin"
                 size="small"

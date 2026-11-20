@@ -2,8 +2,86 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if request.auth != null;
+
+    // ---------- helpers ----------
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.email != null;
     }
+
+    function myEmail() {
+      return request.auth.token.email.lower();
+    }
+
+    function myUserPath() {
+      return /databases/$(database)/documents/users/$(myEmail());
+    }
+
+    // "Approved" = has a doc in /users (same check the app does at login)
+    function isApproved() {
+      return isSignedIn() && exists(myUserPath());
+    }
+
+    function myRole() {
+      return get(myUserPath()).data.get('role', 'user').lower();
+    }
+
+    function isAdmin() {
+      return isApproved() && myRole() == 'admin';
+    }
+
+    // ---------- users ----------
+    // Anyone signed in may read ONLY their own doc (the login lookup).
+    // Only admins can list users or create/change/delete them.
+    match /users/{userId} {
+      allow get: if isSignedIn() && userId == myEmail();
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // ---------- bookings ----------
+    match /bookings/{bookingId} {
+      // Approved users can read any booking (needed for calendar & clash checks);
+      // signed-in non-approved users can read their own requests.
+      allow read: if isApproved()
+        || (isSignedIn() && resource.data.requestedByEmail.lower() == myEmail());
+
+      // New requests: must be signed in, your own, Pending, and not pre-actioned.
+      allow create: if isSignedIn()
+        && request.resource.data.bookingId == bookingId
+        && request.resource.data.requestedByEmail.lower() == myEmail()
+        && request.resource.data.status == 'Pending'
+        && request.resource.data.actionByEmail == ''
+        && request.resource.data.actionAt == null;
+
+      // Admins can change anything. Owners can only cancel their own booking.
+      allow update: if isAdmin()
+        || (isApproved()
+            && resource.data.requestedByEmail.lower() == myEmail()
+            && request.resource.data.status == 'Cancelled'
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['status', 'actionByEmail', 'actionByName', 'actionAt']));
+
+      allow delete: if isAdmin();
+    }
+
+    // ---------- booking number counter ----------
+    // Signed-in users can initialize at 1 or increment by exactly 1.
+    match /counters/{counterId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.lastNumber == 1
+        && request.resource.data.keys().hasAll(['lastNumber', 'year']);
+      allow update: if isAdmin()
+        || (isSignedIn()
+            && request.resource.data.lastNumber == resource.data.lastNumber + 1);
+    }
+
+    // ---------- email queue ----------
+    // Populated server-side by Cloud Functions (Admin SDK).
+    match /mail/{mailId} {
+      allow read, write: if false;
+    }
+
+    // Everything not listed above is denied by default.
   }
 }

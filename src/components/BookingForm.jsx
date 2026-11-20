@@ -23,13 +23,9 @@ import dayjs from "dayjs";
 import { db } from "../firebase/firebaseConfig";
 import { LOCATIONS } from "../utils/constants";
 import { overlaps } from "../utils/timeUtils";
-import {
-  sendAdminNotification,
-  sendUserAcknowledgement,
-} from "../utils/bookingService";
 import BookingFormFields from "./BookingFormFields";
 import { generateRecurringDates } from "../utils/dateUtils";
-import { setDoc, doc, getDoc } from "firebase/firestore";
+import { doc, runTransaction } from "firebase/firestore";
 
 /**
  * Builds the single "jamaat" text that the rest of the app (emails,
@@ -51,9 +47,10 @@ const buildJamaatLabel = (f) => {
 
 const STEPS = ["About you", "When and where", "Event details", "Review"];
 const REVIEW_STEP = STEPS.length - 1;
+const SECTIONS = ["about", "when", "event"]; // BookingFormFields section per step
 
-const INITIAL_FORM_DATA = (user) => ({
-  fullName: user?.displayName || "", // prefilled when the account has one
+const INITIAL_FORM_DATA = () => ({
+  fullName: "",
   phoneNumber: "",
   jamaat: "", // filled automatically on submit from the fields below
   organisationType: "", // "auxiliary" | "jamaat"
@@ -102,7 +99,7 @@ function ReviewRow({ label, value, onEdit }) {
 }
 
 export default function BookingForm({ user, role, bookings }) {
-  const [formData, setFormData] = useState(INITIAL_FORM_DATA(user));
+  const [formData, setFormData] = useState(INITIAL_FORM_DATA);
   const [availableLocations, setAvailableLocations] = useState(LOCATIONS);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [status, setStatus] = useState({ error: "", success: false });
@@ -110,6 +107,7 @@ export default function BookingForm({ user, role, bookings }) {
   const [successPopupOpen, setSuccessPopupOpen] = useState(false);
   const [conflictedLocations, setConflictedLocations] = useState([]);
   const [activeStep, setActiveStep] = useState(0);
+  const [showErrors, setShowErrors] = useState(false); // inline errors after a failed Next
   const topRef = useRef(null);
 
   /** Scroll to the top of the form whenever the step changes */
@@ -252,19 +250,23 @@ export default function BookingForm({ user, role, bookings }) {
     const error = validateStep(activeStep);
     if (error) {
       setStatus({ error, success: false });
+      setShowErrors(true);
       return;
     }
     setStatus({ error: "", success: false });
+    setShowErrors(false);
     setActiveStep((s) => s + 1);
   };
 
   const handleBack = () => {
     setStatus({ error: "", success: false });
+    setShowErrors(false);
     setActiveStep((s) => s - 1);
   };
 
   const goToStep = (step) => {
     setStatus({ error: "", success: false });
+    setShowErrors(false);
     setActiveStep(step);
   };
 
@@ -272,11 +274,11 @@ export default function BookingForm({ user, role, bookings }) {
   const handleSend = async () => {
     setStatus({ error: "", success: false });
 
-    // Re-check every step, in case something changed after the user went back
     for (let step = 0; step < REVIEW_STEP; step++) {
       const error = validateStep(step);
       if (error) {
         setStatus({ error, success: false });
+        setShowErrors(true);
         setActiveStep(step);
         return;
       }
@@ -285,6 +287,15 @@ export default function BookingForm({ user, role, bookings }) {
     if (!acceptedDisclaimer) {
       setStatus({
         error: "Accept the conditions to submit your request.",
+        success: false,
+      });
+      return;
+    }
+
+    const requesterEmail = (user?.email || "").trim().toLowerCase();
+    if (!requesterEmail) {
+      setStatus({
+        error: "Your sign-in account does not have an email address.",
         success: false,
       });
       return;
@@ -301,62 +312,62 @@ export default function BookingForm({ user, role, bookings }) {
         )
       : [formData.date];
 
+    let step = "reserving a booking number";
     try {
-      // Sequential ID
       const counterRef = doc(db, "counters", `bookings_${currentYear}`);
-      const counterSnap = await getDoc(counterRef);
 
-      let nextNum = 1;
-      if (counterSnap.exists()) {
-        nextNum = counterSnap.data().lastNumber + 1;
-      }
+      await runTransaction(db, async (transaction) => {
+        const counterSnap = await transaction.get(counterRef);
+        const nextNum = counterSnap.exists()
+          ? (counterSnap.data().lastNumber || 0) + 1
+          : 1;
 
-      const formattedNum = String(nextNum).padStart(4, "0");
-      const bId = `${currentYear}-${formattedNum}`;
+        const formattedNum = String(nextNum).padStart(4, "0");
+        const bId = `${currentYear}-${formattedNum}`;
+        const newDocRef = doc(db, "bookings", bId);
 
-      const newDocRef = doc(db, "bookings", bId);
+        const bookingPayload = {
+          ...formData,
+          jamaat: buildJamaatLabel(formData),
+          bookingId: bId,
+          status: "Pending",
+          requestedByEmail: requesterEmail,
+          createdAt: new Date().toISOString(),
+          allDates: datesToBook,
+          date: datesToBook[0],
+          userNotified: false,
+          actionByEmail: "",
+          actionByName: "",
+          actionAt: null,
+          approverNote: "",
+        };
 
-      const bookingPayload = {
-        ...formData,
-        // Keep the old single field populated so emails and booking lists still work
-        jamaat: buildJamaatLabel(formData),
-        bookingId: bId,
-        status: "Pending",
-        requestedByEmail: user.email,
-        createdAt: new Date().toISOString(),
-        allDates: datesToBook,
-        date: datesToBook[0],
-        userNotified: false,
-        actionByEmail: "",
-        actionByName: "",
-        actionAt: null,
-        approverNote: "",
-      };
+        step = "saving the booking";
+        transaction.set(newDocRef, bookingPayload);
 
-      await setDoc(newDocRef, bookingPayload);
-      await setDoc(
-        counterRef,
-        { lastNumber: nextNum, year: currentYear },
-        { merge: true },
-      );
+        step = "updating the booking counter";
+        transaction.set(
+          counterRef,
+          { lastNumber: nextNum, year: currentYear },
+          { merge: true },
+        );
+      });
 
-      await sendAdminNotification(db, bookingPayload, bId);
-      await sendUserAcknowledgement(
-        db,
-        user.email,
-        formData.fullName,
-        bookingPayload,
-        bId,
-      );
+      // Admin and confirmation emails are sent by the
+      // notifyAdminsOfNewBooking Cloud Function when the booking is created.
 
       setSuccessPopupOpen(true);
-      setFormData(INITIAL_FORM_DATA(user));
+      setFormData(INITIAL_FORM_DATA());
       setAcceptedDisclaimer(false);
       setConflictedLocations([]);
+      setShowErrors(false);
       setActiveStep(0);
     } catch (e) {
-      console.error("Submission error:", e);
-      setStatus({ error: e.message, success: false });
+      console.error(`Submission failed while ${step}:`, e);
+      setStatus({
+        error: `Couldn't complete your request (${step}): ${e.message}`,
+        success: false,
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -530,29 +541,11 @@ export default function BookingForm({ user, role, bookings }) {
               </Alert>
             )}
 
-            {activeStep === 0 && (
+            {activeStep < REVIEW_STEP && (
               <BookingFormFields
-                section="about"
-                formData={formData}
-                setFormData={setFormData}
-                availableLocations={availableLocations}
-                role={role}
-                conflictedLocations={conflictedLocations}
-              />
-            )}
-            {activeStep === 1 && (
-              <BookingFormFields
-                section="when"
-                formData={formData}
-                setFormData={setFormData}
-                availableLocations={availableLocations}
-                role={role}
-                conflictedLocations={conflictedLocations}
-              />
-            )}
-            {activeStep === 2 && (
-              <BookingFormFields
-                section="event"
+                key={activeStep} // fresh "touched" state on every step
+                section={SECTIONS[activeStep]}
+                showErrors={showErrors}
                 formData={formData}
                 setFormData={setFormData}
                 availableLocations={availableLocations}

@@ -44,7 +44,7 @@ import {
 import { doc, updateDoc, deleteDoc } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
 import { STATUSES } from "../utils/statuses";
-import { LOCATIONS, JAMAAT_OPTIONS } from "../utils/constants";
+import { LOCATIONS, JAMAAT_OPTIONS, MAJLIS_OPTIONS } from "../utils/constants";
 import { overlaps } from "../utils/timeUtils";
 import { groupBookings } from "../utils/groupBookings";
 import { sendFinalConfirmation } from "../utils/bookingService";
@@ -249,7 +249,6 @@ export default function AllBookings({ bookings = [], loading, user, role }) {
       // CRITICAL: We must use the full Firestore Document ID
       // This is the "2026-03-28_2026-0018" string
       const documentId = group.bookingId;
-      console.log(documentId);
       const ref = doc(db, "bookings", documentId);
 
       const updateData = {
@@ -906,7 +905,7 @@ export default function AllBookings({ bookings = [], loading, user, role }) {
               />
               <MultiSelectField
                 label="Majlis Name"
-                options={JAMAAT_OPTIONS}
+                options={MAJLIS_OPTIONS}
                 value={draft.majlisNames || []}
                 onChange={(v) => setDraft({ majlisNames: v })}
               />
